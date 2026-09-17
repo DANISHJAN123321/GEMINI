@@ -25,30 +25,34 @@ st.markdown(
         font-family: 'Google Sans', sans-serif;
     }
     
-    /* Sidebar Styling to Match Reference */
+    /* Sidebar Styling */
     section[data-testid="stSidebar"] {
         background-color: #1e1f20;
         border-right: 1px solid #282a2c;
         padding-top: 5px;
     }
     
-    /* Hide Streamlit Default Menu/Footer */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* Input Pill Bar Styling */
-    .stChatInputContainer {
+    /* FIX: Chat Input Box Visibility & Double Text Bug */
+    .stChatInput {
         background-color: #1e1f20 !important;
         border: 1px solid #444746 !important;
         border-radius: 28px !important;
-        padding: 4px 12px !important;
+        padding: 4px !important;
     }
-    .stChatInputContainer textarea {
+    .stChatInput textarea {
+        background-color: transparent !important;
         color: #ffffff !important;
         font-family: 'Google Sans', sans-serif !important;
+        font-size: 15px !important;
+    }
+    .stChatInput textarea::placeholder {
+        color: #8e918f !important;
     }
 
-    /* Custom Buttons */
+    /* Custom Sidebar Navigation Buttons */
     div.stButton > button:first-child {
         background: #1e1f20;
         color: #e3e3e3; 
@@ -65,11 +69,11 @@ st.markdown(
         border-color: #8e918f;
     }
 
-    /* Chat Message Bubbles */
+    /* Clean Chat Message Bubbles */
     div[data-testid="stChatMessage"] {
         background-color: transparent !important;
-        padding: 16px 0 !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 12px 0 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.03);
     }
     div[data-testid="stChatMessage"] p, div[data-testid="stChatMessage"] span, div[data-testid="stChatMessage"] li {
         color: #e3e3e3 !important;
@@ -92,10 +96,9 @@ if "active_view" not in st.session_state:
   st.session_state.active_view = "💬 Chat Assistant"
 
 # ==========================================
-# Sidebar Navigation (Exact Match to Reference Image)
+# Sidebar Navigation
 # ==========================================
 with st.sidebar:
-  # Top Header with Gemini Logo
   col_logo, col_opt = st.columns([4, 1])
   with col_logo:
     st.markdown(
@@ -113,7 +116,6 @@ with st.sidebar:
 
   st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
-  # Quick Navigation Buttons
   if st.button("➕ New chat", key="nav_new"):
     st.session_state.chat_messages = []
     st.session_state.active_view = "💬 Chat Assistant"
@@ -156,21 +158,19 @@ with st.sidebar:
       unsafe_allow_html=True,
   )
   st.markdown(
-      "<p style='color:#c4c7c5; font-size: 13px; padding: 4px 0; cursor:"
+      "<p style='color:#c4c7c5; font-size: 13px; padding: 2px 0; cursor:"
       " pointer;'>🔥 Building a Free Fire Panel</p>",
       unsafe_allow_html=True,
   )
   st.markdown(
-      "<p style='color:#c4c7c5; font-size: 13px; padding: 4px 0; cursor:"
+      "<p style='color:#c4c7c5; font-size: 13px; padding: 2px 0; cursor:"
       " pointer;'>🚀 15-Day Software Development Roadmap</p>",
       unsafe_allow_html=True,
   )
 
-  # Push profile section to bottom
-  st.markdown("<div style='margin-top: 80px;'></div>", unsafe_allow_html=True)
+  st.markdown("<div style='margin-top: 60px;'></div>", unsafe_allow_html=True)
   st.markdown("---")
 
-  # User Footer (Danyal Jan)
   col_user_img, col_user_name, col_user_set = st.columns([1, 3, 1])
   with col_user_img:
     st.markdown("👤")
@@ -204,18 +204,18 @@ def call_gemini_with_retry(api_call_func, max_retries=3):
 
 
 # ==========================================
-# MODULE 1: Chat Assistant View (with Multimodal File/Image Upload)
+# MODULE 1: Chat Assistant View
 # ==========================================
 if st.session_state.active_view == "💬 Chat Assistant":
   if not st.session_state.chat_messages:
     st.markdown(
-        "<h2 style='color: #c4c7c5; font-weight: 400; margin-top: 40px;'>Hello,"
-        " Danyal</h2>",
+        "<h2 style='color: #c4c7c5; font-weight: 400; margin-top: 20px;"
+        " margin-bottom: 0px;'>Hello, Danyal</h2>",
         unsafe_allow_html=True,
     )
     st.markdown(
-        "<h1 style='color: #e3e3e3; font-weight: 500; margin-top: -10px;"
-        " margin-bottom: 30px;'>How can I help you today?</h1>",
+        "<h1 style='color: #e3e3e3; font-weight: 500; margin-top: 0px;"
+        " margin-bottom: 20px;'>How can I help you today?</h1>",
         unsafe_allow_html=True,
     )
   else:
@@ -225,11 +225,12 @@ if st.session_state.active_view == "💬 Chat Assistant":
         if "file_name" in message and message["file_name"]:
           st.caption(f"📎 Attached file: {message['file_name']}")
 
-  # Upload Section Widget for Images, Documents, Folders/Files
-  with st.expander("➕ Upload Image, Document, or File Workspace"):
+  # Compact File/Image Upload Expander
+  with st.expander("📁 Attach Image, Document, or File"):
     uploaded_file = st.file_uploader(
-        "Choose a file to attach to your prompt",
+        "Choose a file to attach",
         type=["png", "jpg", "jpeg", "txt", "pdf", "py", "csv", "json", "zip"],
+        label_visibility="collapsed",
     )
 
   if user_query := st.chat_input("Ask Gemini..."):
@@ -296,7 +297,7 @@ if st.session_state.active_view == "💬 Chat Assistant":
 
   st.markdown(
       "<p style='text-align: center; color: #8e918f; font-size: 11px; margin-top:"
-      " 30px;'>Gemini is AI and can make mistakes.</p>",
+      " 15px;'>Gemini is AI and can make mistakes.</p>",
       unsafe_allow_html=True,
   )
 
@@ -385,7 +386,7 @@ elif st.session_state.active_view == "🎨 Image Generator":
 
 
 # ==========================================
-# MODULE 3: Other Views (Search, Students, Library)
+# MODULE 3: Other Views
 # ==========================================
 else:
   st.title(f"📁 {st.session_state.active_view}")
