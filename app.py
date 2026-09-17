@@ -58,25 +58,26 @@ st.markdown(
         background-color: #131314 !important;
     }
     
-    /* Chat Input Container & Box Styling */
+    /* Chat Input Container & Box Styling (Forced Black Input Text) */
     div[data-testid="stChatInputContainer"] {
         background-color: #131314 !important;
         border-top: none !important;
     }
     .stChatInput {
-        background-color: #1e1f20 !important;
+        background-color: #f0f4f9 !important;
         border: 1px solid #444746 !important;
         border-radius: 28px !important;
         padding: 4px !important;
     }
     .stChatInput textarea {
         background-color: transparent !important;
-        color: #ffffff !important;
+        color: #000000 !important;
         font-family: 'Google Sans', sans-serif !important;
         font-size: 15px !important;
+        font-weight: 500 !important;
     }
     .stChatInput textarea::placeholder {
-        color: #8e918f !important;
+        color: #5e615f !important;
     }
 
     /* Custom Sidebar Navigation Buttons */
@@ -122,14 +123,14 @@ api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
 
 # ==========================================
-# Session State Initialization (Global & Features)
+# Session State Initialization
 # ==========================================
 if "chat_messages" not in st.session_state:
     st.session_state.chat_messages = []
 if "student_chat" not in st.session_state:
     st.session_state.student_chat = []
 if "saved_images" not in st.session_state:
-    st.session_state.saved_images = []  # Stores dicts: {bytes, prompt}
+    st.session_state.saved_images = []
 if "notes" not in st.session_state:
     st.session_state.notes = [{"id": 0, "title": "Welcome to Notebooks", "content": "Write your ideas, code snippets, and study materials here!"}]
 if "active_view" not in st.session_state:
@@ -314,7 +315,6 @@ elif st.session_state.active_view == "🔍 Search chats":
             st.success(f"Found {len(results)} matching messages.")
             for r in results:
                 with st.chat_message(r['role'], avatar="👤" if r['role']=="user" else "✨"):
-                    # Basic highlight
                     highlighted = r['content'].replace(search_q, f"**{search_q}**")
                     st.markdown(highlighted)
         else:
@@ -339,7 +339,7 @@ elif st.session_state.active_view == "🎓 Students":
         # --- GUIDED LEARNING ---
         with tab_learn:
             st.subheader("Step-by-Step Socratic Tutor")
-            st.info("Gemini will not give you the direct answer. Instead, it will guide you to figure it out yourself by asking thoughtful questions.")
+            st.info("Gemini will guide you to figure things out step-by-step through questions.")
             
             for m in st.session_state.student_chat:
                 with st.chat_message(m["role"], avatar="👤" if m["role"] == "user" else "✨"):
@@ -347,13 +347,12 @@ elif st.session_state.active_view == "🎓 Students":
                     
             if student_q := st.chat_input("What topic or problem are you stuck on?", key="student_input"):
                 st.session_state.student_chat.append({"role": "user", "content": student_q})
-                st.rerun() # Trigger rerun to show chat input at bottom properly
+                st.rerun()
                 
-            # Handle AI response after rerun
             if st.session_state.student_chat and st.session_state.student_chat[-1]["role"] == "user":
                 with st.chat_message("assistant", avatar="✨"):
                     with st.spinner("Preparing guidance..."):
-                        socratic_prompt = f"Act as an expert Socratic tutor. A student asks: '{st.session_state.student_chat[-1]['content']}'. DO NOT give the direct answer. Break down the concept and ask a guiding question to help them understand it."
+                        socratic_prompt = f"Act as an expert Socratic tutor. A student asks: '{st.session_state.student_chat[-1]['content']}'. DO NOT give the direct answer. Break down the concept and ask a guiding question."
                         s_reply = query_gemini_text(socratic_prompt)
                         st.markdown(s_reply)
                         st.session_state.student_chat.append({"role": "model", "content": s_reply})
@@ -373,7 +372,7 @@ elif st.session_state.active_view == "🎓 Students":
         # --- FLASHCARDS ---
         with tab_flash:
             st.subheader("AI Flashcard Generator")
-            flash_topic = st.text_input("Enter a topic for flashcards (e.g. Physics formulas, Spanish verbs):")
+            flash_topic = st.text_input("Enter a topic for flashcards:")
             if st.button("🗂️ Create Flashcards"):
                 if flash_topic:
                     with st.spinner("Generating flashcards..."):
@@ -395,11 +394,11 @@ elif st.session_state.active_view == "🎓 Students":
         # --- IMMERSIVE VIEW ---
         with tab_focus:
             st.subheader("Distraction-Free Reading")
-            focus_topic = st.text_area("Paste text or ask Gemini to explain a topic in an immersive format:")
+            focus_topic = st.text_area("Paste text or ask Gemini to explain a topic:")
             if st.button("🌌 Enter Immersive View"):
                 if focus_topic:
                     with st.spinner("Formatting immersive view..."):
-                        i_prompt = f"Write a comprehensive, engaging, and easy-to-read explanation of '{focus_topic}'. Use clean formatting."
+                        i_prompt = f"Write a comprehensive, engaging explanation of '{focus_topic}'."
                         i_text = query_gemini_text(i_prompt)
                         st.markdown(f"<div class='immersive-view'>{i_text}</div>", unsafe_allow_html=True)
 
@@ -424,7 +423,7 @@ elif st.session_state.active_view == "📁 Library":
 
 
 # ==========================================
-# MODULE 5: Image Generator (Links to Library)
+# MODULE 5: Image Generator
 # ==========================================
 elif st.session_state.active_view == "🎨 Image Generator":
     if st.session_state.is_guest:
@@ -448,7 +447,6 @@ elif st.session_state.active_view == "🎨 Image Generator":
                             for part in candidate.content.parts:
                                 if part.inline_data:
                                     img_bytes = part.inline_data.data
-                                    # SAVE TO LIBRARY
                                     st.session_state.saved_images.append({"bytes": img_bytes, "prompt": img_prompt})
                                     st.success("Image generated and saved to your 📁 Library!")
                                     st.rerun()
