@@ -9,7 +9,7 @@ import streamlit as st
 # Page Configuration & Custom Icon
 # ==========================================
 st.set_page_config(
-    page_title="Gemini",
+    page_title="Gemini Workspace",
     page_icon="gemini_star.png",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -20,7 +20,7 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
 
-    /* Global Dark Theme Background - Zero White Bleed Everywhere */
+    /* Global Dark Theme Background & Font */
     .stApp, .main, [data-testid="stAppViewContainer"], [data-testid="stHeader"], [data-testid="stBottom"], [data-testid="stBottomBlockContainer"] { 
         background-color: #131314 !important; 
         color: #e3e3e3 !important; 
@@ -58,7 +58,7 @@ st.markdown(
         background-color: #131314 !important;
     }
     
-    /* Chat Input Container & Box Styling (Forced Black Input Text) */
+    /* Chat Input Container & Box Styling */
     div[data-testid="stChatInputContainer"] {
         background-color: #131314 !important;
         border-top: none !important;
@@ -80,39 +80,49 @@ st.markdown(
         color: #5e615f !important;
     }
 
-    /* Custom Sidebar Navigation Buttons */
-    div.stButton > button:first-child {
+    /* Smooth Modern Rounded Buttons & Inputs */
+    div.stButton > button:first-child, .stDownloadButton > button {
         background: #1e1f20;
         color: #e3e3e3; 
         border: 1px solid #444746; 
-        border-radius: 20px; 
+        border-radius: 24px !important; 
         font-weight: 500;
-        padding: 0.4rem 1rem; 
+        padding: 0.5rem 1.2rem; 
         width: 100%;
-        text-align: left;
-        transition: background 0.2s;
+        text-align: center;
+        transition: all 0.2s ease-in-out;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
-    div.stButton > button:first-child:hover {
+    div.stButton > button:first-child:hover, .stDownloadButton > button:hover {
         background: #282a2c;
         border-color: #8e918f;
+        transform: translateY(-1px);
     }
 
-    /* Clean Chat Message Bubbles - Prevent Artifacts */
+    /* Rounded Text Inputs & Selectboxes */
+    .stTextInput input, .stSelectbox [data-baseweb="select"] {
+        border-radius: 20px !important;
+        background-color: #1e1f20 !important;
+        border: 1px solid #444746 !important;
+        color: #e3e3e3 !important;
+    }
+
+    /* Clean Chat Message Bubbles */
     div[data-testid="stChatMessage"] {
         background-color: transparent !important;
         padding: 12px 0 !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.03);
     }
     
-    /* Custom UI for Tabs & Expanders (Student & Notebook Features) */
+    /* Tabs & Expanders */
     .stTabs [data-baseweb="tab-list"] { background-color: transparent; border-bottom: 1px solid #282a2c; }
-    .stTabs [data-baseweb="tab"] { color: #8e918f !important; font-family: 'Google Sans', sans-serif; }
-    .stTabs [aria-selected="true"] { color: #e3e3e3 !important; border-bottom: 2px solid #e3e3e3 !important; }
-    div[data-testid="stExpander"] { background-color: #1e1f20 !important; border: 1px solid #444746 !important; border-radius: 12px !important; }
+    .stTabs [data-baseweb="tab"] { color: #8e918f !important; font-family: 'Google Sans', sans-serif; border-radius: 12px 12px 0 0; }
+    .stTabs [aria-selected="true"] { color: #e3e3e3 !important; border-bottom: 2px solid #e3e3e3 !important; background-color: rgba(255,255,255,0.02); }
+    div[data-testid="stExpander"] { background-color: #1e1f20 !important; border: 1px solid #444746 !important; border-radius: 16px !important; }
     div[data-testid="stExpander"] summary p { color: #e3e3e3 !important; font-weight: 500 !important; font-size: 16px; }
     
     /* Immersive View Styling */
-    .immersive-view { background-color: #131314; padding: 40px; border-radius: 20px; border: 1px solid #444746; font-size: 18px; line-height: 1.8; color: #f0f0f0; }
+    .immersive-view { background-color: #1e1f20; padding: 40px; border-radius: 24px; border: 1px solid #444746; font-size: 18px; line-height: 1.8; color: #f0f0f0; }
     </style>
 """,
     unsafe_allow_html=True,
@@ -168,13 +178,13 @@ def call_gemini_with_retry(api_call_func, max_retries=3):
             else:
                 raise e
 
-# Simple Text Completion Helper
-def query_gemini_text(prompt_text):
+# Dynamic Model Query Helper
+def query_gemini_text(prompt_text, selected_model="gemini-2.5-flash"):
     if not api_key:
         return "⚠️ Please configure your Gemini API Key."
     client = genai.Client(api_key=api_key)
     def fetch():
-        return client.models.generate_content(model="gemini-3.6-flash", contents=prompt_text)
+        return client.models.generate_content(model=selected_model, contents=prompt_text)
     response = call_gemini_with_retry(fetch)
     return response.text
 
@@ -184,7 +194,7 @@ def query_gemini_text(prompt_text):
 # ==========================================
 if not st.session_state.user_name and not st.session_state.is_guest:
     st.markdown(
-        "<div style='max-width: 480px; margin: 50px auto; padding: 30px; background-color: #1e1f20; border: 1px solid #444746; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);'>"
+        "<div style='max-width: 480px; margin: 50px auto; padding: 30px; background-color: #1e1f20; border: 1px solid #444746; border-radius: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);'>"
         "<div style='text-align: center; margin-bottom: 20px;'><h2 style='color: #e3e300; margin-bottom: 5px;'>✨ Gemini Workspace</h2><p style='color: #8e918f; font-size: 14px;'>Secure Authentication Portal</p></div>",
         unsafe_allow_html=True,
     )
@@ -250,7 +260,7 @@ if not st.session_state.user_name and not st.session_state.is_guest:
 # Sidebar Navigation
 # ==========================================
 with st.sidebar:
-    st.markdown("<h3 style='color: #e3e3e3; font-size: 18px;'>✨ Gemini</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #e3e3e3; font-size: 18px;'>✨ Gemini Workspace</h3>", unsafe_allow_html=True)
     st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
     if st.button("➕ New chat"): st.session_state.active_view = "💬 Chat Assistant"; st.rerun()
@@ -269,12 +279,21 @@ with st.sidebar:
 
 
 # ==========================================
-# MODULE 1: Main Chat Assistant
+# MODULE 1: Main Chat Assistant with Model Switcher
 # ==========================================
 if st.session_state.active_view == "💬 Chat Assistant":
-    if not st.session_state.chat_messages:
-        st.markdown(f"<h1 style='color: #e3e3e3; font-weight: 500;'>Hello, {st.session_state.user_name}</h1>", unsafe_allow_html=True)
-        st.markdown("<h2 style='color: #8e918f; font-weight: 400;'>How can I help you today?</h2>", unsafe_allow_html=True)
+    # Top bar for Model Selection inside Chat view
+    col_title, col_model = st.columns([2.5, 1.5])
+    with col_title:
+        if not st.session_state.chat_messages:
+            st.markdown(f"<h1 style='color: #e3e3e3; font-weight: 500;'>Hello, {st.session_state.user_name}</h1>", unsafe_allow_html=True)
+            st.markdown("<h2 style='color: #8e918f; font-weight: 400;'>How can I help you today?</h2>", unsafe_allow_html=True)
+    with col_model:
+        selected_model = st.selectbox(
+            "🧠 Select Gemini Model",
+            ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.6-flash"],
+            help="Switch between different Gemini models instantly."
+        )
     
     for message in st.session_state.chat_messages:
         with st.chat_message(message["role"], avatar="👤" if message["role"] == "user" else "✨"):
@@ -291,13 +310,13 @@ if st.session_state.active_view == "💬 Chat Assistant":
         with st.chat_message("user", avatar="👤"): st.markdown(user_query)
 
         with st.chat_message("assistant", avatar="✨"):
-            with st.spinner("Gemini is thinking..."):
+            with st.spinner(f"Thinking with {selected_model}..."):
                 try:
-                    reply = query_gemini_text(" ".join(file_content))
+                    reply = query_gemini_text(" ".join(file_content), selected_model=selected_model)
                     st.markdown(reply)
                     st.session_state.chat_messages.append({"role": "model", "content": reply})
                 except Exception as e:
-                    st.error(f"Chat Error: {e}")
+                    st.error(f"Chat Error / Rate Limit: {e}")
 
 
 # ==========================================
@@ -336,7 +355,6 @@ elif st.session_state.active_view == "🎓 Students":
         
         tab_learn, tab_quiz, tab_flash, tab_focus = st.tabs(["📖 Guided Learning", "📝 Quiz Yourself", "🗂️ Flashcards", "🌌 Immersive View"])
         
-        # --- GUIDED LEARNING ---
         with tab_learn:
             st.subheader("Step-by-Step Socratic Tutor")
             st.info("Gemini will guide you to figure things out step-by-step through questions.")
@@ -357,7 +375,6 @@ elif st.session_state.active_view == "🎓 Students":
                         st.markdown(s_reply)
                         st.session_state.student_chat.append({"role": "model", "content": s_reply})
 
-        # --- QUIZ YOURSELF ---
         with tab_quiz:
             st.subheader("Interactive AI Practice Test")
             quiz_topic = st.text_input("Enter a subject or paste your notes to generate an interactive quiz:")
@@ -430,7 +447,6 @@ elif st.session_state.active_view == "🎓 Students":
                     else:
                         st.warning(f"💡 Keep practicing! Your Score: **{score}/{total}**")
 
-        # --- FLASHCARDS ---
         with tab_flash:
             st.subheader("Interactive AI Flashcard Deck")
             flash_topic = st.text_input("Enter a topic for flashcards:")
@@ -467,7 +483,7 @@ elif st.session_state.active_view == "🎓 Students":
                     label_text = "💡 Click to see Definition" if not is_flipped else "🔄 Click to see Term"
                     
                     st.markdown(f"""
-                    <div style="background-color: #1e1f20; border: 1px solid #444746; border-radius: 16px; padding: 25px; text-align: center; margin-bottom: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                    <div style="background-color: #1e1f20; border: 1px solid #444746; border-radius: 20px; padding: 25px; text-align: center; margin-bottom: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
                         <p style="color: #8e918f; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">{card_title}</p>
                         <h3 style="color: #e3e3e3; font-size: 20px; font-weight: 500; margin-bottom: 0;">{content_to_show}</h3>
                     </div>
@@ -477,7 +493,6 @@ elif st.session_state.active_view == "🎓 Students":
                         st.session_state[flip_key] = not is_flipped
                         st.rerun()
 
-        # --- IMMERSIVE VIEW ---
         with tab_focus:
             st.subheader("Distraction-Free Reading")
             focus_topic = st.text_area("Paste text or ask Gemini to explain a topic:")
@@ -509,7 +524,7 @@ elif st.session_state.active_view == "📁 Library":
 
 
 # ==========================================
-# MODULE 5: Image Generator
+# MODULE 5: Image Generator (With Quota Fallback Notice)
 # ==========================================
 elif st.session_state.active_view == "🎨 Image Generator":
     if st.session_state.is_guest:
@@ -542,7 +557,7 @@ elif st.session_state.active_view == "🎨 Image Generator":
                         else:
                             st.error("No image data returned. Please try modifying your prompt.")
                     except Exception as e:
-                        st.error(f"Generation Error: {e}")
+                        st.error(f"Image Quota / Generation Error: {e}")
         with col2:
             st.info("Generated images will be automatically saved to your **Library** tab.")
 
@@ -578,7 +593,17 @@ elif st.session_state.active_view == "📓 Notebook":
                 new_title = st.text_input("Note Title", value=active_note["title"])
                 new_content = st.text_area("Content", value=active_note["content"], height=400)
                 
-                if st.button("💾 Save Note Changes"):
-                    st.session_state.notes[current_id]["title"] = new_title
-                    st.session_state.notes[current_id]["content"] = new_content
-                    st.success("Note securely saved!")
+                col_save, col_export = st.columns(2)
+                with col_save:
+                    if st.button("💾 Save Note Changes", use_container_width=True):
+                        st.session_state.notes[current_id]["title"] = new_title
+                        st.session_state.notes[current_id]["content"] = new_content
+                        st.success("Note securely saved!")
+                with col_export:
+                    st.download_button(
+                        "📥 Export Note (.txt)",
+                        data=new_content,
+                        file_name=f"{new_title.lower().replace(' ', '_')}.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
