@@ -35,7 +35,7 @@ st.markdown(
         background-color: #131314 !important;
         color: #e3e3e3 !important;
         padding-top: 2rem;
-        padding-bottom: 120px;
+        padding-bottom: 140px;
     }
 
     /* Sidebar Styling */
@@ -48,7 +48,7 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* Completely Dark Bottom Container for Chat Input (Removes the white area circled) */
+    /* Completely Dark Bottom Container for Chat Input */
     [data-testid="stBottom"] {
         background-color: #131314 !important;
         border-top: none !important;
@@ -95,7 +95,7 @@ st.markdown(
         border-color: #8e918f;
     }
 
-    /* Clean Chat Message Bubbles - Prevent Text Overlap & Artifacts */
+    /* Clean Chat Message Bubbles - Prevent Artifacts */
     div[data-testid="stChatMessage"] {
         background-color: transparent !important;
         padding: 12px 0 !important;
@@ -303,18 +303,35 @@ if st.session_state.active_view == "💬 Chat Assistant":
     )
   else:
     for message in st.session_state.chat_messages:
-      with st.chat_message(message["role"]):
+      # Explicit avatars (👤 and ✨) completely eliminate default text artifacts like 'face' or 'smart_toy'
+      avatar_icon = "👤" if message["role"] == "user" else "✨"
+      with st.chat_message(message["role"], avatar=avatar_icon):
         st.markdown(message["content"])
         if "file_name" in message and message["file_name"]:
           st.caption(f"📎 Attached file: {message['file_name']}")
 
-  # Compact File/Image Upload Expander
-  with st.expander("📁 Attach Image, Document, or File"):
-    uploaded_file = st.file_uploader(
-        "Choose a file to attach",
-        type=["png", "jpg", "jpeg", "txt", "pdf", "py", "csv", "json", "zip"],
-        label_visibility="collapsed",
-    )
+  # Built-in `+` Attachment Button right above the chat input box for images, videos, audio, and all file formats
+  uploaded_file = st.file_uploader(
+      "➕ Upload any file (Images, Videos, Audio, Documents, Code, Archives)",
+      type=[
+          "png",
+          "jpg",
+          "jpeg",
+          "mp4",
+          "mov",
+          "mp3",
+          "wav",
+          "txt",
+          "pdf",
+          "py",
+          "csv",
+          "json",
+          "zip",
+          "docx",
+          "xlsx",
+      ],
+      label_visibility="visible",
+  )
 
   if user_query := st.chat_input("Ask Gemini..."):
     if not api_key:
@@ -326,7 +343,11 @@ if st.session_state.active_view == "💬 Chat Assistant":
       if uploaded_file is not None:
         file_name_display = uploaded_file.name
         file_bytes = uploaded_file.getvalue()
-        if uploaded_file.type.startswith("image/"):
+        if (
+            uploaded_file.type.startswith("image/")
+            or uploaded_file.type.startswith("video/")
+            or uploaded_file.type.startswith("audio/")
+        ):
           file_content_parts.append(
               types.Part.from_bytes(data=file_bytes, mime_type=uploaded_file.type)
           )
@@ -348,12 +369,12 @@ if st.session_state.active_view == "💬 Chat Assistant":
           "content": user_query,
           "file_name": file_name_display,
       })
-      with st.chat_message("user"):
+      with st.chat_message("user", avatar="👤"):
         st.markdown(user_query)
         if file_name_display:
           st.caption(f"📎 Attached file: {file_name_display}")
 
-      with st.chat_message("assistant"):
+      with st.chat_message("assistant", avatar="✨"):
         with st.spinner("Gemini is thinking..."):
           try:
             client = genai.Client(api_key=api_key)
