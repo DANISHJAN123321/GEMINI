@@ -1,27 +1,66 @@
 import os
-import time
 from google import genai
 from google.genai import types
 import streamlit as st
 
 # ==========================================
-# Page Configuration & Styling
+# Page Configuration & Gemini.com Theme Styling
 # ==========================================
 st.set_page_config(
-    page_title="Gemini Ultimate Studio", page_icon="⚡", layout="wide"
+    page_title="Gemini",
+    page_icon="✨",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 st.markdown(
     """
     <style>
-    .stApp { background-color: #0b0f19; color: #f3f4f6; }
-    .sidebar .stSidebar { background-color: #111827; }
-    div.stButton > button:first-child {
-        background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-        color: white; border: none; border-radius: 10px; font-weight: bold;
-        padding: 0.6rem; width: 100%;
+    /* Gemini Web Dark Theme Styling */
+    .stApp { 
+        background-color: #131314; 
+        color: #e3e3e3; 
+        font-family: 'Google Sans', sans-serif;
     }
-    .stTextArea textarea, .stTextInput input { background-color: #1e293b; color: #f3f4f6; }
+    
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #1e1f20;
+        border-right: 1px solid #282a2c;
+    }
+    
+    /* Input Fields Fix - Ensure text is bright white and legible */
+    .stTextInput input, .stTextArea textarea {
+        background-color: #1e1f20 !important;
+        color: #ffffff !important;
+        border: 1px solid #444746 !important;
+        border-radius: 12px !important;
+        padding: 10px 14px !important;
+    }
+    .stTextInput input:focus, .stTextArea textarea:focus {
+        border-color: #a8c7fa !important;
+        box-shadow: 0 0 0 1px #a8c7fa !important;
+    }
+    
+    /* Buttons Styling */
+    div.stButton > button:first-child {
+        background: #a8c7fa;
+        color: #001d35; 
+        border: none; 
+        border-radius: 24px; 
+        font-weight: 500;
+        padding: 0.6rem 1.2rem; 
+        width: 100%;
+        transition: background 0.2s;
+    }
+    div.stButton > button:first-child:hover {
+        background: #d3e3fd;
+    }
+
+    /* Radio button / Selectbox styling tweaks */
+    .stRadio label, .stSelectbox label {
+        color: #c4c7c5 !important;
+    }
     </style>
 """,
     unsafe_allow_html=True,
@@ -41,30 +80,35 @@ if "studio_output" not in st.session_state:
   st.session_state.studio_output = ""
 
 # ==========================================
-# Sidebar Navigation & Setup
+# Sidebar Navigation (Gemini.com Style)
 # ==========================================
 with st.sidebar:
-  st.markdown("### ⚡ Gemini Ultimate Studio")
+  st.markdown("### ✨ Gemini Studio")
   app_mode = st.radio(
-      "Choose Module:",
+      "Navigation",
       [
-          "💬 AI Chat Assistant",
-          "🎨 Direct API Image Generator",
+          "💬 Chat Assistant",
+          "🎨 Image Generator",
           "✍️ Prompt & Copywriting Studio",
       ],
+      label_visibility="collapsed",
   )
   st.markdown("---")
-  st.markdown("**API Engine:** Official `google-genai` SDK")
-  st.markdown("**Model Tier:** Free Tier Enabled")
+  st.markdown(
+      "<p style='color: #8e918f; font-size: 12px;'>Powered by Gemini 3.6"
+      " Flash</p>",
+      unsafe_allow_html=True,
+  )
 
 
 # ==========================================
 # MODULE 1: AI Chat Assistant
 # ==========================================
-if app_mode == "💬 AI Chat Assistant":
-  st.title("💬 Gemini Conversational Assistant")
+if app_mode == "💬 Chat Assistant":
+  st.title("Hello, User")
   st.markdown(
-      "Chat live with the official Gemini API using conversational history."
+      "<p style='color: #8e918f;'>How can I help you today?</p>",
+      unsafe_allow_html=True,
   )
   st.markdown("---")
 
@@ -74,29 +118,27 @@ if app_mode == "💬 AI Chat Assistant":
       st.markdown(message["content"])
 
   # User chat input
-  if user_query := st.chat_input("Ask Gemini anything..."):
+  if user_query := st.chat_input("Enter a prompt here..."):
     if not api_key:
       st.error("API Key not found in Streamlit Secrets!")
     else:
-      # Append and display user message
       st.session_state.chat_messages.append(
           {"role": "user", "content": user_query}
       )
       with st.chat_message("user"):
         st.markdown(user_query)
 
-      # Generate AI response
       with st.chat_message("assistant"):
         with st.spinner("Gemini is thinking..."):
           try:
             client = genai.Client(api_key=api_key)
-            # Format chat history for the official API structure
             formatted_history = [
                 {"role": m["role"], "parts": [{"text": m["content"]}]}
                 for m in st.session_state.chat_messages[:-1]
             ]
+            # Updated to use gemini-3.6-flash
             chat = client.chats.create(
-                model="gemini-2.5-flash", history=formatted_history
+                model="gemini-3.6-flash", history=formatted_history
             )
             response = chat.send_message(user_query)
             ai_reply = response.text
@@ -112,11 +154,12 @@ if app_mode == "💬 AI Chat Assistant":
 # ==========================================
 # MODULE 2: Direct API Image Generator
 # ==========================================
-elif app_mode == "🎨 Direct API Image Generator":
-  st.title("🎨 Official Gemini API Image Studio")
+elif app_mode == "🎨 Image Generator":
+  st.title("🎨 Image Generation Studio")
   st.markdown(
-      "Generate images directly through the native Gemini API free tier"
-      " endpoint."
+      "<p style='color: #8e918f;'>Create visual artwork using official Gemini"
+      " models.</p>",
+      unsafe_allow_html=True,
   )
   st.markdown("---")
 
@@ -134,7 +177,7 @@ elif app_mode == "🎨 Direct API Image Generator":
     aspect_ratio = st.selectbox(
         "Aspect Ratio", ["1:1 (Square)", "16:9 (Landscape)", "9:16 (Portrait)"]
     )
-    gen_image_btn = st.button("✨ Generate Image via API")
+    gen_image_btn = st.button("✨ Generate Image")
 
   with col2:
     st.markdown("#### 🖼️ Output Preview")
@@ -142,15 +185,14 @@ elif app_mode == "🎨 Direct API Image Generator":
       if not api_key:
         st.error("API Key missing in Streamlit Secrets!")
       else:
-        with st.spinner(
-            "Calling official Gemini API image generation endpoint..."
-        ):
+        with st.spinner("Generating artwork..."):
           try:
             client = genai.Client(api_key=api_key)
             ratio_code = aspect_ratio.split(" ")[0]
 
+            # Updated to use gemini-3.6-flash
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-3.6-flash",
                 contents=image_prompt,
                 config=types.GenerateContentConfig(
                     response_modalities=["IMAGE", "TEXT"]
@@ -166,13 +208,13 @@ elif app_mode == "🎨 Direct API Image Generator":
                       img_bytes = part.inline_data.data
                       st.image(
                           img_bytes,
-                          caption=f"Generated via Gemini API ({ratio_code})",
+                          caption=f"Generated Image ({ratio_code})",
                           use_container_width=True,
                       )
                       st.download_button(
-                          label="📥 Download Generated Image",
+                          label="📥 Download Image",
                           data=img_bytes,
-                          file_name="gemini_api_image.jpg",
+                          file_name="gemini_image.jpg",
                           mime="image/jpeg",
                       )
                       image_found = True
@@ -183,17 +225,14 @@ elif app_mode == "🎨 Direct API Image Generator":
                 st.info(f"Model text response: {response.text}")
               else:
                 st.warning(
-                    "No image data returned. Try a more detailed description."
+                    "No image data returned. Try a more descriptive prompt."
                 )
           except Exception as e:
-            st.error(
-                f"Generation Error: {e}. If quota is reached, check your free"
-                " tier token limits."
-            )
+            st.error(f"Generation Error: {e}")
     else:
       st.info(
-          "👉 Configure your description on the left and click **'Generate Image"
-          " via API'**."
+          "👉 Configure your description on the left and click **'Generate"
+          " Image'**."
       )
 
 
@@ -201,10 +240,11 @@ elif app_mode == "🎨 Direct API Image Generator":
 # MODULE 3: Prompt & Copywriting Studio
 # ==========================================
 elif app_mode == "✍️ Prompt & Copywriting Studio":
-  st.title("✍️ Professional Content & Prompt Studio")
+  st.title("✍️ Prompt & Content Studio")
   st.markdown(
-      "Leverage Gemini text intelligence to craft high-conversion copywriting"
-      " and image prompts."
+      "<p style='color: #8e918f;'>Build professional prompts and copy with AI"
+      " intelligence.</p>",
+      unsafe_allow_html=True,
   )
   st.markdown("---")
 
@@ -212,7 +252,7 @@ elif app_mode == "✍️ Prompt & Copywriting Studio":
 
   with col_a:
     tool_type = st.selectbox(
-        "Select Writing Tool:",
+        "Select Tool:",
         [
             "AI Image Prompt Engineer",
             "Marketing Copywriter (AIDA)",
@@ -234,7 +274,6 @@ elif app_mode == "✍️ Prompt & Copywriting Studio":
         try:
           client = genai.Client(api_key=api_key)
 
-          # Define specific instructions based on selection
           if tool_type == "AI Image Prompt Engineer":
             instruction = (
                 "Act as an expert AI prompt engineer. Expand this concept into a"
@@ -244,13 +283,12 @@ elif app_mode == "✍️ Prompt & Copywriting Studio":
           elif tool_type == "Marketing Copywriter (AIDA)":
             instruction = (
                 "Act as a professional direct-response copywriter. Write a"
-                " marketing pitch using the AIDA framework (Attention, Interest,"
-                " Desire, Action)."
+                " marketing pitch using the AIDA framework."
             )
           elif tool_type == "Blog Post Structure":
             instruction = (
                 "Act as a content strategist. Outline a comprehensive blog"
-                " post including H2 headings and key breakdown points."
+                " post including H2 headings."
             )
           else:
             instruction = (
@@ -258,8 +296,9 @@ elif app_mode == "✍️ Prompt & Copywriting Studio":
                 " lines for this topic."
             )
 
+          # Updated to use gemini-3.6-flash
           response = client.models.generate_content(
-              model="gemini-2.5-flash",
+              model="gemini-3.6-flash",
               contents=raw_input,
               config=types.GenerateContentConfig(
                   system_instruction=instruction, temperature=0.7
