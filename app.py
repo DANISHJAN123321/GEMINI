@@ -1,4 +1,5 @@
 import os
+import time
 from google import genai
 from google.genai import types
 import streamlit as st
@@ -8,7 +9,7 @@ import streamlit as st
 # ==========================================
 st.set_page_config(
     page_title="Gemini",
-    page_icon="✨",
+    page_icon="💎",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -16,20 +17,15 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Gemini Web Dark Theme Styling */
     .stApp { 
         background-color: #131314; 
         color: #e3e3e3; 
         font-family: 'Google Sans', sans-serif;
     }
-    
-    /* Sidebar Styling */
     section[data-testid="stSidebar"] {
         background-color: #1e1f20;
         border-right: 1px solid #282a2c;
     }
-    
-    /* Fixed Input Text Visibility - Bright White */
     .stTextInput input, .stTextArea textarea {
         background-color: #1e1f20 !important;
         color: #ffffff !important;
@@ -41,13 +37,6 @@ st.markdown(
         border-color: #a8c7fa !important;
         box-shadow: 0 0 0 1px #a8c7fa !important;
     }
-    
-    /* Chat input box styling to match floating bar */
-    .stChatInputContainer {
-        padding-bottom: 20px;
-    }
-
-    /* Buttons Styling */
     div.stButton > button:first-child {
         background: #a8c7fa;
         color: #001d35; 
@@ -61,8 +50,6 @@ st.markdown(
     div.stButton > button:first-child:hover {
         background: #d3e3fd;
     }
-
-    /* Radio button / Selectbox labels */
     .stRadio label, .stSelectbox label {
         color: #c4c7c5 !important;
     }
@@ -85,7 +72,7 @@ if "studio_output" not in st.session_state:
   st.session_state.studio_output = ""
 
 # ==========================================
-# Sidebar Navigation (Gemini.com Style)
+# Sidebar Navigation
 # ==========================================
 with st.sidebar:
   st.markdown("### ✨ Gemini Studio")
@@ -106,6 +93,25 @@ with st.sidebar:
   )
 
 
+# Helper function to handle transient errors (503 / 429) automatically
+def call_gemini_with_retry(api_call_func, max_retries=3):
+  for attempt in range(max_retries):
+    try:
+      return api_call_func()
+    except Exception as e:
+      err_str = str(e)
+      if (
+          "503" in err_str
+          or "UNAVAILABLE" in err_str
+          or "429" in err_str
+          or "RESOURCE_EXHAUSTED" in err_str
+      ) and attempt < max_retries - 1:
+        time.sleep(2 * (attempt + 1))  # Exponential backoff delay
+        continue
+      else:
+        raise e
+
+
 # ==========================================
 # MODULE 1: AI Chat Assistant
 # ==========================================
@@ -117,17 +123,14 @@ if app_mode == "💬 Chat Assistant":
   )
   st.markdown("---")
 
-  # Display past messages safely
   for message in st.session_state.chat_messages:
     with st.chat_message(message["role"]):
       st.markdown(message["content"])
 
-  # User chat input (Allows continuous multi-turn dialogue without freezing)
   if user_query := st.chat_input("Ask Gemini..."):
     if not api_key:
       st.error("API Key not found in Streamlit Secrets!")
     else:
-      # Append user message
       st.session_state.chat_messages.append(
           {"role": "user", "content": user_query}
       )
@@ -138,15 +141,18 @@ if app_mode == "💬 Chat Assistant":
         with st.spinner("Gemini is thinking..."):
           try:
             client = genai.Client(api_key=api_key)
-            # Format multi-turn history properly for gemini-3.6-flash
             formatted_history = [
                 {"role": m["role"], "parts": [{"text": m["content"]}]}
                 for m in st.session_state.chat_messages[:-1]
             ]
-            chat = client.chats.create(
-                model="gemini-3.6-flash", history=formatted_history
-            )
-            response = chat.send_message(user_query)
+
+            def send_chat():
+              chat = client.chats.create(
+                  model="gemini-3.6-flash", history=formatted_history
+              )
+              return chat.send_message(user_query)
+
+            response = call_gemini_with_retry(send_chat)
             ai_reply = response.text
 
             st.markdown(ai_reply)
@@ -154,7 +160,10 @@ if app_mode == "💬 Chat Assistant":
                 {"role": "model", "content": ai_reply}
             )
           except Exception as e:
-            st.error(f"Chat Error: {e}")
+            st.error(
+                f"Chat Error: {e}. The server is busy, please try sending"
+                " again."
+            )
 
 
 # ==========================================
@@ -191,18 +200,21 @@ elif app_mode == "🎨 Image Generator":
       if not api_key:
         st.error("API Key missing in Streamlit Secrets!")
       else:
-        with st.spinner("Generating artwork..."):
+        with st.spinner("Generating artwork (auto-retrying if busy)..."):
           try:
             client = genai.Client(api_key=api_key)
             ratio_code = aspect_ratio.split(" ")[0]
 
-            response = client.models.generate_content(
-                model="gemini-3.6-flash",
-                contents=image_prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE", "TEXT"]
-                ),
-            )
+            def generate_img():
+              return client.models.generate_content(
+                  model="gemini-3.6-flash",
+                  contents=image_prompt,
+                  config=types.GenerateContentConfig(
+                      response_modalities=["IMAGE", "TEXT"]
+                  ),
+              )
+
+            response = call_gemini_with_retry(generate_img)
 
             image_found = False
             if response and response.candidates:
@@ -233,7 +245,10 @@ elif app_mode == "🎨 Image Generator":
                     "No image data returned. Try a more descriptive prompt."
                 )
           except Exception as e:
-            st.error(f"Generation Error: {e}")
+            st.error(
+                f"Generation Error: {e}. Servers are busy, please click generate"
+                " again."
+            )
     else:
       st.info(
           "👉 Configure your description on the left and click **'Generate"
@@ -301,13 +316,16 @@ elif app_mode == "✍️ Prompt & Copywriting Studio":
                 " lines for this topic."
             )
 
-          response = client.models.generate_content(
-              model="gemini-3.6-flash",
-              contents=raw_input,
-              config=types.GenerateContentConfig(
-                  system_instruction=instruction
-              ),
-          )
+          def generate_text():
+            return client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=raw_input,
+                config=types.GenerateContentConfig(
+                    system_instruction=instruction
+                ),
+            )
+
+          response = call_gemini_with_retry(generate_text)
           st.session_state.studio_output = response.text.strip()
         except Exception as e:
           st.error(f"Studio Error: {e}")
