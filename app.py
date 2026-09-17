@@ -19,15 +19,21 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
 
+    /* Global Dark Theme Background */
     .stApp { 
-        background-color: #131314; 
-        color: #e3e3e3; 
+        background-color: #131314 !important; 
+        color: #e3e3e3 !important; 
         font-family: 'Google Sans', sans-serif;
+    }
+    
+    /* FIX: Remove White Header/Top Bar Bleed */
+    header[data-testid="stHeader"] {
+        background-color: transparent !important;
     }
     
     /* Sidebar Styling */
     section[data-testid="stSidebar"] {
-        background-color: #1e1f20;
+        background-color: #1e1f20 !important;
         border-right: 1px solid #282a2c;
         padding-top: 5px;
     }
@@ -35,12 +41,15 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* FIX: Chat Input Box Visibility & Double Text Bug */
+    /* FIX: Chat Input Box Visibility & Remove White Container Background */
     .stChatInput {
         background-color: #1e1f20 !important;
         border: 1px solid #444746 !important;
         border-radius: 28px !important;
         padding: 4px !important;
+    }
+    .stChatInputContainer {
+        background-color: transparent !important;
     }
     .stChatInput textarea {
         background-color: transparent !important;
@@ -69,15 +78,18 @@ st.markdown(
         border-color: #8e918f;
     }
 
-    /* Clean Chat Message Bubbles */
+    /* FIX: Clean Chat Message Bubbles & Prevent Text Overlay/Duplication */
     div[data-testid="stChatMessage"] {
         background-color: transparent !important;
         padding: 12px 0 !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.03);
     }
-    div[data-testid="stChatMessage"] p, div[data-testid="stChatMessage"] span, div[data-testid="stChatMessage"] li {
+    div[data-testid="stChatMessage"] p, 
+    div[data-testid="stChatMessage"] span, 
+    div[data-testid="stChatMessage"] li {
         color: #e3e3e3 !important;
         font-family: 'Google Sans', sans-serif !important;
+        background: transparent !important;
     }
     </style>
 """,
@@ -209,13 +221,13 @@ def call_gemini_with_retry(api_call_func, max_retries=3):
 if st.session_state.active_view == "💬 Chat Assistant":
   if not st.session_state.chat_messages:
     st.markdown(
-        "<h2 style='color: #c4c7c5; font-weight: 400; margin-top: 20px;"
+        "<h2 style='color: #c4c7c5; font-weight: 400; margin-top: 10px;"
         " margin-bottom: 0px;'>Hello, Danyal</h2>",
         unsafe_allow_html=True,
     )
     st.markdown(
         "<h1 style='color: #e3e3e3; font-weight: 500; margin-top: 0px;"
-        " margin-bottom: 20px;'>How can I help you today?</h1>",
+        " margin-bottom: 15px;'>How can I help you today?</h1>",
         unsafe_allow_html=True,
     )
   else:
@@ -297,7 +309,7 @@ if st.session_state.active_view == "💬 Chat Assistant":
 
   st.markdown(
       "<p style='text-align: center; color: #8e918f; font-size: 11px; margin-top:"
-      " 15px;'>Gemini is AI and can make mistakes.</p>",
+      " 10px;'>Gemini is AI and can make mistakes.</p>",
       unsafe_allow_html=True,
   )
 
