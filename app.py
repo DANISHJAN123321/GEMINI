@@ -19,18 +19,24 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
 
-    /* Global Dark Theme Background */
+    /* Global Dark Theme Background - No White Sections */
     .stApp { 
         background-color: #131314 !important; 
         color: #e3e3e3 !important; 
         font-family: 'Google Sans', sans-serif;
     }
     
-    /* FIX: Remove White Header/Top Bar Bleed */
+    /* Remove White Header/Top Bar */
     header[data-testid="stHeader"] {
         background-color: transparent !important;
     }
     
+    /* Remove Default Block Containers White Background padding */
+    .main .block-container {
+        background-color: #131314 !important;
+        color: #e3e3e3 !important;
+    }
+
     /* Sidebar Styling */
     section[data-testid="stSidebar"] {
         background-color: #1e1f20 !important;
@@ -41,15 +47,16 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* FIX: Chat Input Box Visibility & Remove White Container Background */
+    /* Chat Input Box Styling & Dark Container Override */
     .stChatInput {
         background-color: #1e1f20 !important;
         border: 1px solid #444746 !important;
         border-radius: 28px !important;
         padding: 4px !important;
     }
-    .stChatInputContainer {
-        background-color: transparent !important;
+    div[data-testid="stChatInputContainer"] {
+        background-color: #131314 !important;
+        border-top: none !important;
     }
     .stChatInput textarea {
         background-color: transparent !important;
@@ -78,7 +85,7 @@ st.markdown(
         border-color: #8e918f;
     }
 
-    /* FIX: Clean Chat Message Bubbles & Prevent Text Overlay/Duplication */
+    /* Clean Chat Message Bubbles & Prevent Overlay */
     div[data-testid="stChatMessage"] {
         background-color: transparent !important;
         padding: 12px 0 !important;
@@ -100,12 +107,53 @@ st.markdown(
 api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
 # ==========================================
-# Session State Initialization
+# Session State Initialization (Account & Chat)
 # ==========================================
 if "chat_messages" not in st.session_state:
   st.session_state.chat_messages = []
 if "active_view" not in st.session_state:
   st.session_state.active_view = "💬 Chat Assistant"
+if "user_name" not in st.session_state:
+  st.session_state.user_name = None
+if "is_guest" not in st.session_state:
+  st.session_state.is_guest = False
+
+# ==========================================
+# Authentication & Name Entry Screen (If not logged in / guest)
+# ==========================================
+if not st.session_state.user_name and not st.session_state.is_guest:
+  st.markdown(
+      "<div style='max-width: 450px; margin: 80px auto; padding: 30px;"
+      " background-color: #1e1f20; border: 1px solid #444746; border-radius:"
+      " 16px; text-align: center;'>"
+      "<h2 style='color: #e3e3e3; margin-bottom: 10px;'>✨ Welcome to"
+      " Gemini</h2>"
+      "<p style='color: #8e918f; font-size: 14px; margin-bottom: 25px;'>Please"
+      " enter your name to sign in, or proceed as a free guest.</p>"
+      "</div>",
+      unsafe_allow_html=True,
+  )
+
+  col_login1, col_login2 = st.columns(2)
+  with col_login1:
+    entered_name = st.text_input("Your Name", placeholder="Enter your full name")
+    if st.button("🚀 Register / Sign In", use_container_width=True):
+      if entered_name.strip():
+        st.session_state.user_name = entered_name.strip()
+        st.session_state.is_guest = False
+        st.rerun()
+      else:
+        st.warning("Please enter a valid name.")
+  with col_login2:
+    st.markdown(
+        "<div style='height: 29px;'></div>", unsafe_allow_html=True
+    )  # alignment spacer
+    if st.button("👤 Continue as Free Guest", use_container_width=True):
+      st.session_state.user_name = "Guest"
+      st.session_state.is_guest = True
+      st.rerun()
+
+  st.stop()  # Halt execution until user authenticates
 
 # ==========================================
 # Sidebar Navigation
@@ -157,11 +205,11 @@ with st.sidebar:
   )
 
   if st.button("➕ New notebook", key="nav_new_nb"):
-    pass
-  if st.button("📓 d", key="nb_1"):
-    pass
+    st.session_state.active_view = "📓 Notebook"
+    st.rerun()
   if st.button("📓 Untitled notebook", key="nb_2"):
-    pass
+    st.session_state.active_view = "📓 Notebook"
+    st.rerun()
 
   st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
   st.markdown(
@@ -180,7 +228,7 @@ with st.sidebar:
       unsafe_allow_html=True,
   )
 
-  st.markdown("<div style='margin-top: 60px;'></div>", unsafe_allow_html=True)
+  st.markdown("<div style='margin-top: 40px;'></div>", unsafe_allow_html=True)
   st.markdown("---")
 
   col_user_img, col_user_name, col_user_set = st.columns([1, 3, 1])
@@ -188,12 +236,15 @@ with st.sidebar:
     st.markdown("👤")
   with col_user_name:
     st.markdown(
-        "<p style='color: #e3e3e3; font-size: 13px; font-weight: 500; margin:"
-        " 0;'>Danyal Jan</p>",
+        f"<p style='color: #e3e3e3; font-size: 13px; font-weight: 500; margin:"
+        f" 0;'>{st.session_state.user_name}</p>",
         unsafe_allow_html=True,
     )
   with col_user_set:
-    st.markdown("⚙️")
+    if st.button("🚪", key="logout_btn", help="Switch Account / Logout"):
+      st.session_state.user_name = None
+      st.session_state.is_guest = False
+      st.rerun()
 
 
 # Helper function to handle transient API errors automatically
@@ -220,9 +271,12 @@ def call_gemini_with_retry(api_call_func, max_retries=3):
 # ==========================================
 if st.session_state.active_view == "💬 Chat Assistant":
   if not st.session_state.chat_messages:
+    display_name = (
+        "Guest" if st.session_state.is_guest else st.session_state.user_name
+    )
     st.markdown(
-        "<h2 style='color: #c4c7c5; font-weight: 400; margin-top: 10px;"
-        " margin-bottom: 0px;'>Hello, Danyal</h2>",
+        f"<h2 style='color: #c4c7c5; font-weight: 400; margin-top: 10px;"
+        f" margin-bottom: 0px;'>Hello, {display_name}</h2>",
         unsafe_allow_html=True,
     )
     st.markdown(
@@ -315,90 +369,129 @@ if st.session_state.active_view == "💬 Chat Assistant":
 
 
 # ==========================================
-# MODULE 2: Image Generator View
+# MODULE 2: Image Generator View (Restricted for Guests)
 # ==========================================
 elif st.session_state.active_view == "🎨 Image Generator":
-  st.title("🎨 Image Generation Studio")
-  st.markdown(
-      "<p style='color: #8e918f;'>Create professional visual artwork using"
-      " Gemini models.</p>",
-      unsafe_allow_html=True,
-  )
-  st.markdown("---")
-
-  col1, col2 = st.columns([1, 1.2])
-
-  with col1:
-    image_prompt = st.text_area(
-        "Enter image description:",
-        value=(
-            "Cinematic neon-lit cyberpunk sports car driving through Tokyo"
-            " streets at night"
-        ),
-        height=120,
+  if st.session_state.is_guest:
+    st.error("🔒 Access Restricted")
+    st.warning(
+        "Free guests cannot use the **Image Generator** feature. Please log in"
+        " with a registered account to unlock this feature!"
     )
-    aspect_ratio = st.selectbox(
-        "Aspect Ratio", ["1:1 (Square)", "16:9 (Landscape)", "9:16 (Portrait)"]
+    if st.button("🔑 Switch to Registered Account"):
+      st.session_state.user_name = None
+      st.session_state.is_guest = False
+      st.rerun()
+  else:
+    st.title("🎨 Image Generation Studio")
+    st.markdown(
+        "<p style='color: #8e918f;'>Create professional visual artwork using"
+        " Gemini models.</p>",
+        unsafe_allow_html=True,
     )
-    gen_image_btn = st.button("✨ Generate Image")
+    st.markdown("---")
 
-  with col2:
-    st.markdown("#### 🖼️ Output Preview")
-    if gen_image_btn:
-      if not api_key:
-        st.error("API Key missing in Streamlit Secrets!")
-      else:
-        with st.spinner("Generating artwork..."):
-          try:
-            client = genai.Client(api_key=api_key)
-            ratio_code = aspect_ratio.split(" ")[0]
+    col1, col2 = st.columns([1, 1.2])
 
-            def generate_img():
-              return client.models.generate_content(
-                  model="gemini-3.6-flash",
-                  contents=image_prompt,
-                  config=types.GenerateContentConfig(
-                      response_modalities=["IMAGE", "TEXT"]
-                  ),
-              )
+    with col1:
+      image_prompt = st.text_area(
+          "Enter image description:",
+          value=(
+              "Cinematic neon-lit cyberpunk sports car driving through Tokyo"
+              " streets at night"
+          ),
+          height=120,
+      )
+      aspect_ratio = st.selectbox(
+          "Aspect Ratio", ["1:1 (Square)", "16:9 (Landscape)", "9:16 (Portrait)"]
+      )
+      gen_image_btn = st.button("✨ Generate Image")
 
-            response = call_gemini_with_retry(generate_img)
+    with col2:
+      st.markdown("#### 🖼️ Output Preview")
+      if gen_image_btn:
+        if not api_key:
+          st.error("API Key missing in Streamlit Secrets!")
+        else:
+          with st.spinner("Generating artwork..."):
+            try:
+              client = genai.Client(api_key=api_key)
+              ratio_code = aspect_ratio.split(" ")[0]
 
-            image_found = False
-            if response and response.candidates:
-              for candidate in response.candidates:
-                if candidate.content and candidate.content.parts:
-                  for part in candidate.content.parts:
-                    if getattr(part, "inline_data", None) and part.inline_data:
-                      img_bytes = part.inline_data.data
-                      st.image(
-                          img_bytes,
-                          caption=f"Generated Image ({ratio_code})",
-                          use_container_width=True,
-                      )
-                      st.download_button(
-                          label="📥 Download Image",
-                          data=img_bytes,
-                          file_name="gemini_image.jpg",
-                          mime="image/jpeg",
-                      )
-                      image_found = True
-
-            if not image_found:
-              if response and response.text:
-                st.info(f"Model text response: {response.text}")
-              else:
-                st.warning(
-                    "No image data returned. Try a more descriptive prompt."
+              def generate_img():
+                return client.models.generate_content(
+                    model="gemini-3.6-flash",
+                    contents=image_prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE", "TEXT"]
+                    ),
                 )
-          except Exception as e:
-            st.error(f"Generation Error: {e}")
-    else:
-      st.info("👉 Configure your description and click **'Generate Image'**.")
+
+              response = call_gemini_with_retry(generate_img)
+
+              image_found = False
+              if response and response.candidates:
+                for candidate in response.candidates:
+                  if candidate.content and candidate.content.parts:
+                    for part in candidate.content.parts:
+                      if getattr(part, "inline_data", None) and part.inline_data:
+                        img_bytes = part.inline_data.data
+                        st.image(
+                            img_bytes,
+                            caption=f"Generated Image ({ratio_code})",
+                            use_container_width=True,
+                        )
+                        st.download_button(
+                            label="📥 Download Image",
+                            data=img_bytes,
+                            file_name="gemini_image.jpg",
+                            mime="image/jpeg",
+                        )
+                        image_found = True
+
+              if not image_found:
+                if response and response.text:
+                  st.info(f"Model text response: {response.text}")
+                else:
+                  st.warning(
+                      "No image data returned. Try a more descriptive prompt."
+                  )
+            except Exception as e:
+              st.error(f"Generation Error: {e}")
+      else:
+        st.info("👉 Configure your description and click **'Generate Image'**.")
 
 
 # ==========================================
-# MODULE 3: Other Views
+# MODULE 3: Notebook View (Restricted for Guests)
+# ==========================================
+elif st.session_state.active_view == "📓 Notebook":
+  if st.session_state.is_guest:
+    st.error("🔒 Access Restricted")
+    st.warning(
+        "Free guests cannot access **Notebooks**. Please sign in with a"
+        " registered account to use this feature!"
+    )
+    if st.button("🔑 Switch to Registered Account", key="nb_login_btn"):
+      st.session_state.user_name = None
+      st.session_state.is_guest = False
+      st.rerun()
+  else:
+    st.title("📓 Notebook Workspace")
+    st.markdown(
+        "<p style='color: #8e918f;'>Manage your saved notes, research snippets,"
+        " and data sources.</p>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("---")
+    st.info(
+        "Notebook workspace active. You can add your custom notes and code"
+        " snippets here."
+    )
+
+
+# ==========================================
+# MODULE 4: Other Views
 # ==========================================
 else:
   st.title(f"📁 {st.session_state.active_view}")
