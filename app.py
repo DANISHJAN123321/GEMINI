@@ -8,12 +8,13 @@ import streamlit as st
 # Page Configuration & Gemini.com Theme Styling
 # ==========================================
 st.set_page_config(
-    page_title="Gemini",
+    page_title="Gemini Studio",
     page_icon="💎",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
+# Custom CSS with fix for chat message text visibility and layout colors
 st.markdown(
     """
     <style>
@@ -52,6 +53,17 @@ st.markdown(
     }
     .stRadio label, .stSelectbox label {
         color: #c4c7c5 !important;
+    }
+    /* FIX: Force high-contrast visible text inside chat messages */
+    div[data-testid="stChatMessage"] {
+        background-color: #1e1f20 !important;
+        border: 1px solid #282a2c !important;
+        border-radius: 16px !important;
+        padding: 10px !important;
+        margin-bottom: 10px !important;
+    }
+    div[data-testid="stChatMessage"] p, div[data-testid="stChatMessage"] span, div[data-testid="stChatMessage"] li {
+        color: #e3e3e3 !important;
     }
     </style>
 """,
