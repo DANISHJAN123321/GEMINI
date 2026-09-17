@@ -5,19 +5,20 @@ from google.genai import types
 import streamlit as st
 
 # ==========================================
-# Page Configuration & Gemini.com Theme Styling
+# Page Configuration & Exact Gemini UI Theme
 # ==========================================
 st.set_page_config(
-    page_title="Gemini Studio",
-    page_icon="💎",
+    page_title="Gemini",
+    page_icon="✨",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS with fix for chat message text visibility and layout colors
 st.markdown(
     """
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
+
     .stApp { 
         background-color: #131314; 
         color: #e3e3e3; 
@@ -26,6 +27,7 @@ st.markdown(
     section[data-testid="stSidebar"] {
         background-color: #1e1f20;
         border-right: 1px solid #282a2c;
+        padding-top: 10px;
     }
     .stTextInput input, .stTextArea textarea {
         background-color: #1e1f20 !important;
@@ -54,13 +56,13 @@ st.markdown(
     .stRadio label, .stSelectbox label {
         color: #c4c7c5 !important;
     }
-    /* FIX: Force high-contrast visible text inside chat messages */
+    /* Force high-contrast visible text inside chat messages */
     div[data-testid="stChatMessage"] {
         background-color: #1e1f20 !important;
         border: 1px solid #282a2c !important;
         border-radius: 16px !important;
-        padding: 10px !important;
-        margin-bottom: 10px !important;
+        padding: 12px !important;
+        margin-bottom: 12px !important;
     }
     div[data-testid="stChatMessage"] p, div[data-testid="stChatMessage"] span, div[data-testid="stChatMessage"] li {
         color: #e3e3e3 !important;
@@ -84,10 +86,16 @@ if "studio_output" not in st.session_state:
   st.session_state.studio_output = ""
 
 # ==========================================
-# Sidebar Navigation
+# Sidebar Navigation (Mirrors Gemini Reference UI)
 # ==========================================
 with st.sidebar:
-  st.markdown("### 💎 Gemini Studio")
+  st.markdown(
+      "<h3 style='color: #e3e3e3; font-size: 18px; margin-bottom: 0;'>✨"
+      " Gemini</h3>",
+      unsafe_allow_html=True,
+  )
+  st.markdown("---")
+
   app_mode = st.radio(
       "Navigation",
       [
@@ -97,15 +105,37 @@ with st.sidebar:
       ],
       label_visibility="collapsed",
   )
+
   st.markdown("---")
   st.markdown(
-      "<p style='color: #8e918f; font-size: 12px;'>Powered by Gemini 3.6"
-      " Flash</p>",
+      "<p"
+      " style='color:#8e918f;font-size:12px;font-weight:500;'>RECENT</p>",
+      unsafe_allow_html=True,
+  )
+  st.markdown(
+      "<p style='color:#c4c7c5;font-size:13px;cursor:pointer;'>Building a Free"
+      " Fire Panel</p>",
+      unsafe_allow_html=True,
+  )
+  st.markdown(
+      "<p style='color:#c4c7c5;font-size:13px;cursor:pointer;'>15-Day Software"
+      " Roadmap</p>",
+      unsafe_allow_html=True,
+  )
+
+  st.markdown("<div style='margin-top: 150px;'></div>", unsafe_allow_html=True)
+  st.markdown("---")
+  st.markdown(
+      "<div style='display: flex; align-items: center; gap: 10px;'>"
+      "<span style='font-size: 18px;'>👤</span>"
+      "<span style='font-size: 14px; font-weight: 500; color: #e3e3e3;'>Danyal"
+      " Jan</span>"
+      "</div>",
       unsafe_allow_html=True,
   )
 
 
-# Helper function to handle transient errors (503 / 429) automatically
+# Helper function to handle transient errors automatically
 def call_gemini_with_retry(api_call_func, max_retries=3):
   for attempt in range(max_retries):
     try:
@@ -118,36 +148,73 @@ def call_gemini_with_retry(api_call_func, max_retries=3):
           or "429" in err_str
           or "RESOURCE_EXHAUSTED" in err_str
       ) and attempt < max_retries - 1:
-        time.sleep(2 * (attempt + 1))  # Exponential backoff delay
+        time.sleep(2 * (attempt + 1))
         continue
       else:
         raise e
 
 
 # ==========================================
-# MODULE 1: AI Chat Assistant
+# MODULE 1: AI Chat Assistant with File/Image Upload
 # ==========================================
 if app_mode == "💬 Chat Assistant":
-  st.title("Hello, User")
+  st.title("Hello, Danyal")
   st.markdown(
       "<p style='color: #8e918f;'>How can I help you today?</p>",
       unsafe_allow_html=True,
   )
   st.markdown("---")
 
+  # Render chat conversation history
   for message in st.session_state.chat_messages:
     with st.chat_message(message["role"]):
       st.markdown(message["content"])
+      if "file_name" in message and message["file_name"]:
+        st.caption(f"📎 Attached: {message['file_name']}")
 
-  if user_query := st.chat_input("Ask Gemini..."):
+  # Upload section for images or files right above chat input
+  uploaded_file = st.file_uploader(
+      "📁 Upload Image, Document or File for Analysis",
+      type=["png", "jpg", "jpeg", "txt", "pdf", "py", "csv"],
+  )
+
+  if user_query := st.chat_input("Ask Gemini or give instructions..."):
     if not api_key:
       st.error("API Key not found in Streamlit Secrets!")
     else:
-      st.session_state.chat_messages.append(
-          {"role": "user", "content": user_query}
-      )
+      file_content_parts = []
+      file_name_display = None
+
+      if uploaded_file is not None:
+        file_name_display = uploaded_file.name
+        file_bytes = uploaded_file.getvalue()
+        if uploaded_file.type.startswith("image/"):
+          file_content_parts.append(
+              types.Part.from_bytes(data=file_bytes, mime_type=uploaded_file.type)
+          )
+        else:
+          try:
+            text_data = file_bytes.decode("utf-8")
+            file_content_parts.append(
+                f"\n[Attached File Content from {file_name_display}]:\n{text_data}\n"
+            )
+          except Exception:
+            file_content_parts.append(
+                f"\n[Attached Binary File: {file_name_display}]\n"
+            )
+
+      file_content_parts.append(user_query)
+
+      # Store and display user message
+      st.session_state.chat_messages.append({
+          "role": "user",
+          "content": user_query,
+          "file_name": file_name_display,
+      })
       with st.chat_message("user"):
         st.markdown(user_query)
+        if file_name_display:
+          st.caption(f"📎 Attached: {file_name_display}")
 
       with st.chat_message("assistant"):
         with st.spinner("Gemini is thinking..."):
@@ -162,7 +229,7 @@ if app_mode == "💬 Chat Assistant":
               chat = client.chats.create(
                   model="gemini-3.6-flash", history=formatted_history
               )
-              return chat.send_message(user_query)
+              return chat.send_message(file_content_parts)
 
             response = call_gemini_with_retry(send_chat)
             ai_reply = response.text
@@ -172,10 +239,7 @@ if app_mode == "💬 Chat Assistant":
                 {"role": "model", "content": ai_reply}
             )
           except Exception as e:
-            st.error(
-                f"Chat Error: {e}. The server is busy, please try sending"
-                " again."
-            )
+            st.error(f"Chat Error: {e}. Please try sending again.")
 
 
 # ==========================================
@@ -204,7 +268,7 @@ elif app_mode == "🎨 Image Generator":
     aspect_ratio = st.selectbox(
         "Aspect Ratio", ["1:1 (Square)", "16:9 (Landscape)", "9:16 (Portrait)"]
     )
-    gen_image_btn = st.button("💎 Generate Image")
+    gen_image_btn = st.button("✨ Generate Image")
 
   with col2:
     st.markdown("#### 🖼️ Output Preview")
@@ -212,7 +276,7 @@ elif app_mode == "🎨 Image Generator":
       if not api_key:
         st.error("API Key missing in Streamlit Secrets!")
       else:
-        with st.spinner("Generating artwork (auto-retrying if busy)..."):
+        with st.spinner("Generating artwork..."):
           try:
             client = genai.Client(api_key=api_key)
             ratio_code = aspect_ratio.split(" ")[0]
@@ -247,7 +311,6 @@ elif app_mode == "🎨 Image Generator":
                           mime="image/jpeg",
                       )
                       image_found = True
-                      st.session_state.image_history.append(img_bytes)
 
             if not image_found:
               if response and response.text:
@@ -257,15 +320,9 @@ elif app_mode == "🎨 Image Generator":
                     "No image data returned. Try a more descriptive prompt."
                 )
           except Exception as e:
-            st.error(
-                f"Generation Error: {e}. Servers are busy, please click generate"
-                " again."
-            )
+            st.error(f"Generation Error: {e}. Please try again.")
     else:
-      st.info(
-          "👉 Configure your description on the left and click **'Generate"
-          " Image'**."
-      )
+      st.info("👉 Configure your description and click **'Generate Image'**.")
 
 
 # ==========================================
