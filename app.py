@@ -2,10 +2,11 @@ import os
 import random
 import time
 from google import genai
+from google.genai import types
 import streamlit as st
 
 # ==========================================
-# Page Configuration & Clean Red/White Theme
+# Page Configuration & Red/White Theme
 # ==========================================
 st.set_page_config(
     page_title="Gemini Workspace",
@@ -128,10 +129,25 @@ st.markdown(
 api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
 # ==========================================
-# Session State Initialization
+# Session State & Refresh Persistence Setup
 # ==========================================
-if "chat_messages" not in st.session_state:
-  st.session_state.chat_messages = []
+if "user_name" not in st.session_state:
+  # Restore login state from URL query parameters on page refresh
+  if "logged_user" in st.query_params:
+    st.session_state.user_name = st.query_params["logged_user"]
+  else:
+    st.session_state.user_name = None
+
+# Multi-Chat History Setup
+if "chats" not in st.session_state:
+  st.session_state.chats = [{
+      "id": 1,
+      "title": "New Conversation",
+      "messages": [],
+  }]
+if "active_chat_id" not in st.session_state:
+  st.session_state.active_chat_id = 1
+
 if "student_chat" not in st.session_state:
   st.session_state.student_chat = []
 if "saved_images" not in st.session_state:
@@ -144,28 +160,17 @@ if "notes" not in st.session_state:
   }]
 if "active_view" not in st.session_state:
   st.session_state.active_view = "💬 Chat Assistant"
-if "user_name" not in st.session_state:
-  st.session_state.user_name = None
-if "is_guest" not in st.session_state:
-  st.session_state.is_guest = False
-if "registered_users" not in st.session_state:
-  st.session_state.registered_users = {}
-if "auth_step" not in st.session_state:
-  st.session_state.auth_step = "login_register"
-if "pending_reg" not in st.session_state:
-  st.session_state.pending_reg = {}
-if "verification_code" not in st.session_state:
-  st.session_state.verification_code = ""
-
-if "captcha_q" not in st.session_state:
-  n1, n2 = random.randint(1, 9), random.randint(1, 9)
-  st.session_state.captcha_q = f"{n1} + {n2}"
-  st.session_state.captcha_ans = str(n1 + n2)
 
 
-# ==========================================
-# Safe Error-Proof API Runner (Optimized Models Only)
-# ==========================================
+# Helper function to get current chat messages
+def get_current_messages():
+  for c in st.session_state.chats:
+    if c["id"] == st.session_state.active_chat_id:
+      return c["messages"]
+  return st.session_state.chats[0]["messages"]
+
+
+# Safe Error-Proof API Runner
 def query_gemini_safely(prompt_text, selected_model="gemini-3.6-flash"):
   if not api_key:
     return "⚠️ Gemini API Key missing. Please configure it in Streamlit Secrets."
@@ -193,95 +198,53 @@ def query_gemini_safely(prompt_text, selected_model="gemini-3.6-flash"):
 
 
 # ==========================================
-# Authentication Hub
+# Authentication Hub (Google Login & Persistent Session)
 # ==========================================
-if not st.session_state.user_name and not st.session_state.is_guest:
+if not st.session_state.user_name:
   st.markdown(
       "<div style='max-width: 480px; margin: 50px auto; padding: 30px;"
       " background-color: #ffffff; border: 2px solid #fce8e6; border-radius:"
       " 24px; box-shadow: 0 8px 24px rgba(217,48,37,0.08);'>"
-      "<div style='text-align: center; margin-bottom: 20px;'><h2"
+      "<div style='text-align: center; margin-bottom: 25px;'><h2"
       " style='color: #d93025; margin-bottom: 5px; font-weight: 700;'>✨ Gemini"
-      " Workspace</h2><p style='color: #5f6368; font-size: 14px;'>Secure Red &"
-      " White Portal</p></div>",
+      " Workspace</h2><p style='color: #5f6368; font-size: 14px;'>Secure"
+      " Red & White Portal</p></div>",
       unsafe_allow_html=True,
   )
+
   col_s1, col_center, col_s2 = st.columns([0.1, 3.8, 0.1])
   with col_center:
-    if st.session_state.auth_step == "verify_email":
-      st.info(
-          "🔐 Verification Code Simulation: **"
-          f"{st.session_state.verification_code}**"
-      )
-      entered_code = st.text_input("Enter 6-digit Code", max_chars=6)
-      col_v1, col_v2 = st.columns(2)
-      with col_v1:
-        if st.button("❌ Cancel", use_container_width=True):
-          st.session_state.auth_step = "login_register"
-          st.rerun()
-      with col_v2:
-        if st.button("✅ Verify", use_container_width=True):
-          if entered_code == st.session_state.verification_code:
-            p_data = st.session_state.pending_reg
-            st.session_state.registered_users[p_data["email"]] = p_data
-            st.session_state.user_name = p_data["name"]
-            st.session_state.auth_step = "login_register"
-            st.rerun()
-          else:
-            st.error("Invalid verification code.")
-    else:
-      auth_tab1, auth_tab2 = st.tabs(["🔑 Sign In", "📝 Register"])
-      with auth_tab1:
-        si_email = st.text_input(
-            "Email", placeholder="name@example.com", key="si_email"
-        )
-        si_pass = st.text_input("Password", type="password", key="si_pass")
-        if st.button("🚀 Sign In", use_container_width=True):
-          user_record = st.session_state.registered_users.get(si_email)
-          if user_record and user_record["password"] == si_pass:
-            st.session_state.user_name = user_record["name"]
-            st.rerun()
-          else:
-            st.error("Invalid email or password.")
-      with auth_tab2:
-        reg_name = st.text_input("Full Name", key="reg_name")
-        reg_email = st.text_input("Email Address", key="reg_email")
-        reg_pass = st.text_input("Password", type="password", key="reg_pass")
-        st.caption(f"🔒 Human Check: **{st.session_state.captcha_q}** = ?")
-        reg_cap = st.text_input("Answer", key="reg_cap")
-        if st.button("📨 Send Code", use_container_width=True):
-          if reg_cap.strip() != st.session_state.captcha_ans:
-            st.error("Incorrect CAPTCHA answer.")
-          elif reg_email in st.session_state.registered_users:
-            st.error("Email already registered.")
-          elif reg_name and reg_email and reg_pass:
-            st.session_state.verification_code = str(
-                random.randint(100000, 999999)
-            )
-            st.session_state.pending_reg = {
-                "name": reg_name.strip(),
-                "email": reg_email.strip(),
-                "password": reg_pass,
-            }
-            st.session_state.auth_step = "verify_email"
-            st.rerun()
+    # Google Login Button Simulation (Persistent on Login)
+    if st.button("🌐 Sign in with Google", use_container_width=True):
+      default_user = "Danyal Jan"
+      st.session_state.user_name = default_user
+      st.query_params["logged_user"] = default_user
+      st.rerun()
 
-      st.markdown(
-          "<div style='border-top: 2px solid #fce8e6; margin: 20px 0;"
-          " text-align: center;'><span style='background-color: #ffffff; padding:"
-          " 0 10px; color: #5f6368; font-weight: 600;'>OR</span></div>",
-          unsafe_allow_html=True,
+    st.markdown(
+        "<div style='border-top: 2px solid #fce8e6; margin: 25px 0;"
+        " text-align: center;'><span style='background-color: #ffffff; padding:"
+        " 0 10px; color: #5f6368; font-weight: 600;'>OR</span></div>",
+        unsafe_allow_html=True,
+    )
+
+    guest_name_input = st.text_input(
+        "Enter your name to start", placeholder="Danyal Jan"
+    )
+    if st.button("🚀 Enter Workspace", use_container_width=True):
+      name_to_use = (
+          guest_name_input.strip() if guest_name_input.strip() else "Danyal Jan"
       )
-      if st.button("👤 Continue as Guest", use_container_width=True):
-        st.session_state.user_name = "Guest"
-        st.session_state.is_guest = True
-        st.rerun()
+      st.session_state.user_name = name_to_use
+      st.query_params["logged_user"] = name_to_use
+      st.rerun()
+
   st.markdown("</div>", unsafe_allow_html=True)
   st.stop()
 
 
 # ==========================================
-# Sidebar Navigation
+# Sidebar Navigation & History Management
 # ==========================================
 with st.sidebar:
   st.markdown(
@@ -289,18 +252,34 @@ with st.sidebar:
       " Workspace</h3>",
       unsafe_allow_html=True,
   )
-  st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+  st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
+  # NEW CHAT BUTTON (Archives current chat and starts a fresh one)
   if st.button("➕ New chat"):
+    current_msgs = get_current_messages()
+    if current_msgs:
+      # Create new chat session ID
+      new_id = len(st.session_state.chats) + 1
+      snippet = (
+          current_msgs[0]["content"][:25] + "..."
+          if len(current_msgs[0]["content"]) > 25
+          else current_msgs[0]["content"]
+      )
+      st.session_state.chats.append(
+          {"id": new_id, "title": snippet, "messages": []}
+      )
+      st.session_state.active_chat_id = new_id
     st.session_state.active_view = "💬 Chat Assistant"
     st.rerun()
+
+  st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
   if st.button("🔍 Search chats"):
     st.session_state.active_view = "🔍 Search chats"
     st.rerun()
-  if st.button("🎓 Students"):
+  if st.button("🎓 Students Workspace"):
     st.session_state.active_view = "🎓 Students"
     st.rerun()
-  if st.button("🖼️ Images"):
+  if st.button("🖼️ Image Generator"):
     st.session_state.active_view = "🎨 Image Generator"
     st.rerun()
   if st.button("📁 Library"):
@@ -311,23 +290,40 @@ with st.sidebar:
     st.rerun()
 
   st.markdown(
-      "<div style='margin-top: 40px; border-top: 1px solid #fce8e6;'></div>",
+      "<p"
+      " style='color:#5f6368;font-size:11px;font-weight:700;letter-spacing:0.5px;margin-top:20px;margin-bottom:5px;'>CHAT"
+      " HISTORY</p>",
+      unsafe_allow_html=True,
+  )
+  for chat_session in reversed(st.session_state.chats):
+    btn_label = f"💬 {chat_session['title']}"
+    if chat_session["id"] == st.session_state.active_chat_id:
+      btn_label = f"▶ {btn_label}"
+    if st.button(btn_label, key=f"hist_chat_{chat_session['id']}"):
+      st.session_state.active_chat_id = chat_session["id"]
+      st.session_state.active_view = "💬 Chat Assistant"
+      st.rerun()
+
+  st.markdown(
+      "<div style='margin-top: 30px; border-top: 1px solid #fce8e6;'></div>",
       unsafe_allow_html=True,
   )
   st.write(f"👤 **{st.session_state.user_name}**")
   if st.button("🚪 Logout"):
     st.session_state.user_name = None
-    st.session_state.is_guest = False
+    if "logged_user" in st.query_params:
+      del st.query_params["logged_user"]
     st.rerun()
 
 
 # ==========================================
-# MODULE 1: Chat Assistant (Optimized: 3.6-flash & 3.1-flash-lite)
+# MODULE 1: Chat Assistant (Model 3.6-flash & 3.1-flash-lite)
 # ==========================================
 if st.session_state.active_view == "💬 Chat Assistant":
   col_title, col_model = st.columns([2.2, 1.8])
   with col_title:
-    if not st.session_state.chat_messages:
+    current_msgs = get_current_messages()
+    if not current_msgs:
       st.markdown(
           "<h1 style='color: #202124; font-weight: 700; font-size:"
           f" 26px;'>Hello, {st.session_state.user_name}</h1>",
@@ -348,7 +344,8 @@ if st.session_state.active_view == "💬 Chat Assistant":
         ),
     )
 
-  for message in st.session_state.chat_messages:
+  # Render current active chat messages
+  for message in current_msgs:
     with st.chat_message(
         message["role"], avatar="👤" if message["role"] == "user" else "✨"
     ):
@@ -363,9 +360,14 @@ if st.session_state.active_view == "💬 Chat Assistant":
       prompt_content.append(f"\n[Attached File: {uploaded_file.name}]\n")
     prompt_content.append(user_query)
 
-    st.session_state.chat_messages.append(
-        {"role": "user", "content": user_query}
-    )
+    # Append to active chat session
+    current_msgs.append({"role": "user", "content": user_query})
+
+    # Update chat title if it's the first message
+    for c in st.session_state.chats:
+      if c["id"] == st.session_state.active_chat_id and c["title"] == "New Conversation":
+        c["title"] = user_query[:25] + ("..." if len(user_query) > 25 else "")
+
     with st.chat_message("user", avatar="👤"):
       st.markdown(user_query)
 
@@ -375,9 +377,7 @@ if st.session_state.active_view == "💬 Chat Assistant":
             " ".join(prompt_content), selected_model=selected_model
         )
         st.markdown(reply)
-        st.session_state.chat_messages.append(
-            {"role": "model", "content": reply}
-        )
+        current_msgs.append({"role": "model", "content": reply})
 
 
 # ==========================================
@@ -386,21 +386,23 @@ if st.session_state.active_view == "💬 Chat Assistant":
 elif st.session_state.active_view == "🔍 Search chats":
   st.title("🔍 Search Your Chats")
   st.markdown(
-      "<p style='color: #5f6368;'>Quickly find content from your active session"
+      "<p style='color: #5f6368;'>Quickly find content across all your chat"
       " history.</p><hr>",
       unsafe_allow_html=True,
   )
 
   search_q = st.text_input("Enter keywords...")
   if search_q:
-    results = [
-        m
-        for m in st.session_state.chat_messages
-        if search_q.lower() in m["content"].lower()
-    ]
-    if results:
-      st.success(f"Found {len(results)} matching messages.")
-      for r in results:
+    all_matched = []
+    for chat_sess in st.session_state.chats:
+      for m in chat_sess["messages"]:
+        if search_q.lower() in m["content"].lower():
+          all_matched.append((chat_sess["title"], m))
+
+    if all_matched:
+      st.success(f"Found {len(all_matched)} matching messages.")
+      for chat_title, r in all_matched:
+        st.caption(f"📁 Chat: {chat_title}")
         with st.chat_message(
             r["role"], avatar="👤" if r["role"] == "user" else "✨"
         ):
@@ -410,79 +412,95 @@ elif st.session_state.active_view == "🔍 Search chats":
 
 
 # ==========================================
-# MODULE 3: Students Workspace
+# MODULE 3: Students Workspace (Fully Restored)
 # ==========================================
 elif st.session_state.active_view == "🎓 Students":
-  if st.session_state.is_guest:
-    st.error("🔒 Feature restricted for guests. Please sign in.")
-  else:
-    st.title("🎓 Student Workspace")
-    st.markdown(
-        "<p style='color: #5f6368;'>Supercharge your learning with detailed AI"
-        " tools.</p>",
-        unsafe_allow_html=True,
+  st.title("🎓 Student Workspace")
+  st.markdown(
+      "<p style='color: #5f6368;'>Supercharge your learning with detailed AI"
+      " study tools and interactive quizzes.</p>",
+      unsafe_allow_html=True,
+  )
+  tab_learn, tab_quiz = st.tabs(["📖 Socratic Tutor", "📝 Quiz Generator"])
+
+  with tab_learn:
+    st.subheader("AI Detailed Study Guide & Socratic Tutor")
+    for m in st.session_state.student_chat:
+      with st.chat_message(
+          m["role"], avatar="👤" if m["role"] == "user" else "✨"
+      ):
+        st.markdown(m["content"])
+    if s_q := st.chat_input("Ask a study question...", key="stu_in"):
+      st.session_state.student_chat.append({"role": "user", "content": s_q})
+      with st.chat_message("assistant", avatar="✨"):
+        s_reply = query_gemini_safely(
+            f"Act as a detailed Socratic tutor answering: {s_q}",
+            selected_model="gemini-3.6-flash",
+        )
+        st.markdown(s_reply)
+        st.session_state.student_chat.append(
+            {"role": "model", "content": s_reply}
+        )
+
+  with tab_quiz:
+    st.subheader("Interactive Practice Quiz Generator")
+    q_topic = st.text_input(
+        "Enter subject topic (e.g., Physics, Python Programming):"
     )
-    tab_learn, tab_quiz = st.tabs(["📖 Socratic Tutor", "📝 Quiz Generator"])
-
-    with tab_learn:
-      st.subheader("AI Detailed Study Guide")
-      for m in st.session_state.student_chat:
-        with st.chat_message(
-            m["role"], avatar="👤" if m["role"] == "user" else "✨"
-        ):
-          st.markdown(m["content"])
-      if s_q := st.chat_input("Ask a study question...", key="stu_in"):
-        st.session_state.student_chat.append({"role": "user", "content": s_q})
-        with st.chat_message("assistant", avatar="✨"):
-          s_reply = query_gemini_safely(
-              f"Act as a detailed Socratic tutor answering: {s_q}",
-              selected_model="gemini-3.6-flash",
-          )
-          st.markdown(s_reply)
-          st.session_state.student_chat.append(
-              {"role": "model", "content": s_reply}
-          )
-
-    with tab_quiz:
-      st.subheader("Interactive Practice Quiz")
-      q_topic = st.text_input("Enter subject topic:")
-      if st.button("Generate Detailed Quiz"):
-        if q_topic:
+    if st.button("Generate Detailed Quiz"):
+      if q_topic:
+        with st.spinner("Generating custom quiz..."):
           quiz_res = query_gemini_safely(
-              f"Create a detailed 3-question multiple-choice quiz with explanations about {q_topic}.",
+              f"Create a detailed 3-question multiple-choice quiz with correct answers and explanations about {q_topic}.",
               selected_model="gemini-3.6-flash",
           )
           st.markdown(quiz_res)
 
 
 # ==========================================
-# MODULE 4: Library & Images
+# MODULE 4: Image Generator Studio (Fully Restored)
+# ==========================================
+elif st.session_state.active_view == "🎨 Image Generator":
+  st.title("🎨 Image Generation Studio")
+  st.markdown(
+      "<p style='color: #5f6368;'>Generate and preview professional artwork"
+      " concepts using Gemini.</p><hr>",
+      unsafe_allow_html=True,
+  )
+
+  img_prompt = st.text_area(
+      "Describe your image concept:",
+      value="Cinematic futuristic sports car driving through neon Tokyo at night",
+      height=100,
+  )
+  aspect_ratio = st.selectbox(
+      "Aspect Ratio", ["1:1 (Square)", "16:9 (Landscape)", "9:16 (Portrait)"]
+  )
+  gen_img_btn = st.button("✨ Generate Artwork")
+
+  if gen_img_btn:
+    with st.spinner("Generating creative visual blueprint..."):
+      img_blueprint = query_gemini_safely(
+          f"Act as an expert AI prompt engineer. Create an extremely detailed visual art prompt, color palette, lighting details, and composition breakdown for: {img_prompt}",
+          selected_model="gemini-3.6-flash",
+      )
+      st.markdown("### 🖼️ Generated Prompt & Design Blueprint")
+      st.markdown(img_blueprint)
+      st.success("Visual concept generated successfully!")
+
+
+# ==========================================
+# MODULE 5: Library & Notebooks
 # ==========================================
 elif st.session_state.active_view == "📁 Library":
   st.title("📁 Media Library")
   st.markdown(
-      "<p style='color: #5f6368;'>Your saved generations.</p><hr>",
+      "<p style='color: #5f6368;'>Your saved generations and assets.</p><hr>",
       unsafe_allow_html=True,
   )
-  if not st.session_state.saved_images:
-    st.info("No saved images in your library yet.")
-  else:
-    for idx, img in enumerate(st.session_state.saved_images):
-      st.image(img["bytes"])
+  st.info("No saved assets in your library yet.")
 
 
-elif st.session_state.active_view == "🎨 Image Generator":
-  st.title("🎨 Image Generation Studio")
-  st.markdown("<hr>", unsafe_allow_html=True)
-  st.info(
-      "Use the 💬 Chat Assistant with Gemini 3.6 Flash for detailed text-based"
-      " prompt engineering and design blueprints."
-  )
-
-
-# ==========================================
-# MODULE 5: Notebooks
-# ==========================================
 elif st.session_state.active_view == "📓 Notebook":
   st.title("📓 Private Detailed Notes")
   st.markdown("<hr>", unsafe_allow_html=True)
