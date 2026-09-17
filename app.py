@@ -2,11 +2,10 @@ import os
 import random
 import time
 from google import genai
-from google.genai import types
 import streamlit as st
 
 # ==========================================
-# Page Configuration & Theme
+# Page Configuration & Clean Red/White Theme
 # ==========================================
 st.set_page_config(
     page_title="Gemini Workspace",
@@ -20,95 +19,106 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
 
-    /* Global Dark Theme Background & Font */
+    /* Global Light Theme: Clean Crisp White & Crimson Red Accents */
     .stApp, .main, [data-testid="stAppViewContainer"], [data-testid="stHeader"], [data-testid="stBottom"], [data-testid="stBottomBlockContainer"] { 
-        background-color: #131314 !important; 
-        color: #e3e3e3 !important; 
+        background-color: #ffffff !important; 
+        color: #111111 !important; 
         font-family: 'Google Sans', sans-serif;
     }
     
     header[data-testid="stHeader"] { background-color: transparent !important; visibility: hidden; }
     
     .block-container {
-        background-color: #131314 !important;
-        color: #e3e3e3 !important;
+        background-color: #ffffff !important;
+        color: #111111 !important;
         padding-top: 2rem;
         padding-bottom: 140px;
     }
 
-    /* Sidebar Styling */
+    /* Sidebar Styling: Pure White with Subtle Red Border */
     section[data-testid="stSidebar"] {
-        background-color: #1e1f20 !important;
-        border-right: 1px solid #282a2c;
+        background-color: #fcfcfc !important;
+        border-right: 2px solid #fce8e6;
         padding-top: 5px;
     }
     
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* FIX: Chat Input Box Visibility & Text Color */
+    /* Chat Input Container & Box Styling: High Contrast Visibility */
     [data-testid="stBottom"], [data-testid="stBottomBlockContainer"], div[data-testid="stChatInputContainer"] {
-        background-color: #131314 !important;
+        background-color: #ffffff !important;
         border-top: none !important;
     }
     
     .stChatInput {
-        background-color: #1e1f20 !important;
-        border: 1px solid #444746 !important;
+        background-color: #ffffff !important;
+        border: 2px solid #d93025 !important;
         border-radius: 28px !important;
         padding: 4px !important;
     }
     .stChatInput textarea {
         background-color: transparent !important;
-        color: #ffffff !important;
+        color: #111111 !important;
         font-family: 'Google Sans', sans-serif !important;
         font-size: 15px !important;
         font-weight: 500 !important;
     }
     .stChatInput textarea::placeholder {
-        color: #8e918f !important;
+        color: #5f6368 !important;
     }
 
-    /* Smooth Modern Rounded Buttons & Inputs */
+    /* Smooth Modern Rounded Red & White Buttons */
     div.stButton > button:first-child, .stDownloadButton > button {
-        background: #1e1f20;
-        color: #e3e3e3; 
-        border: 1px solid #444746; 
+        background: #ffffff;
+        color: #d93025; 
+        border: 2px solid #d93025; 
         border-radius: 24px !important; 
-        font-weight: 500;
+        font-weight: 600;
         padding: 0.5rem 1.2rem; 
         width: 100%;
         text-align: center;
         transition: all 0.2s ease-in-out;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        box-shadow: 0 2px 6px rgba(217,48,37,0.1);
     }
     div.stButton > button:first-child:hover, .stDownloadButton > button:hover {
-        background: #282a2c;
-        border-color: #8e918f;
+        background: #d93025;
+        color: #ffffff;
+        border-color: #d93025;
         transform: translateY(-1px);
     }
 
-    /* Rounded Text Inputs & Selectboxes */
+    /* Rounded Text Inputs & Selectboxes with Red Accent */
     .stTextInput input, .stSelectbox [data-baseweb="select"] {
         border-radius: 20px !important;
-        background-color: #1e1f20 !important;
-        border: 1px solid #444746 !important;
-        color: #e3e3e3 !important;
+        background-color: #ffffff !important;
+        border: 2px solid #f1f3f4 !important;
+        color: #111111 !important;
+    }
+    .stTextInput input:focus, .stSelectbox [data-baseweb="select"]:focus-within {
+        border-color: #d93025 !important;
     }
 
-    /* Clean Chat Message Bubbles */
+    /* Clean Chat Message Bubbles with High Legibility */
     div[data-testid="stChatMessage"] {
-        background-color: transparent !important;
-        padding: 12px 0 !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        background-color: #f8f9fa !important;
+        border-radius: 16px;
+        padding: 16px !important;
+        margin-bottom: 12px;
+        border: 1px solid #f1f3f4;
+    }
+    div[data-testid="stChatMessage"] p, div[data-testid="stChatMessage"] span, div[data-testid="stChatMessage"] li {
+        color: #202124 !important;
+        font-size: 15px !important;
+        line-height: 1.6 !important;
     }
     
     /* Tabs & Expanders */
-    .stTabs [data-baseweb="tab-list"] { background-color: transparent; border-bottom: 1px solid #282a2c; }
-    .stTabs [data-baseweb="tab"] { color: #8e918f !important; font-family: 'Google Sans', sans-serif; border-radius: 12px 12px 0 0; }
-    .stTabs [aria-selected="true"] { color: #e3e3e3 !important; border-bottom: 2px solid #e3e3e3 !important; background-color: rgba(255,255,255,0.02); }
-    div[data-testid="stExpander"] { background-color: #1e1f20 !important; border: 1px solid #444746 !important; border-radius: 16px !important; }
-    div[data-testid="stExpander"] summary p { color: #e3e3e3 !important; font-weight: 500 !important; font-size: 16px; }
+    .stTabs [data-baseweb="tab-list"] { background-color: transparent; border-bottom: 2px solid #fce8e6; }
+    .stTabs [data-baseweb="tab"] { color: #5f6368 !important; font-family: 'Google Sans', sans-serif; font-weight: 600; border-radius: 12px 12px 0 0; }
+    .stTabs [aria-selected="true"] { color: #d93025 !important; border-bottom: 3px solid #d93025 !important; background-color: #fce8e6 !important; }
+    div[data-testid="stExpander"] { background-color: #ffffff !important; border: 2px solid #f1f3f4 !important; border-radius: 16px !important; }
+    div[data-testid="stExpander"] summary p { color: #202124 !important; font-weight: 600 !important; font-size: 16px; }
     </style>
 """,
     unsafe_allow_html=True,
@@ -130,7 +140,7 @@ if "notes" not in st.session_state:
   st.session_state.notes = [{
       "id": 0,
       "title": "Welcome Note",
-      "content": "Write your ideas here!",
+      "content": "Write your detailed notes here!",
   }]
 if "active_view" not in st.session_state:
   st.session_state.active_view = "💬 Chat Assistant"
@@ -154,17 +164,13 @@ if "captcha_q" not in st.session_state:
 
 
 # ==========================================
-# Safe Error-Proof API Runner
+# Safe Error-Proof API Runner (Optimized Models Only)
 # ==========================================
-def query_gemini_safely(prompt_text, selected_model="gemini-2.5-flash"):
+def query_gemini_safely(prompt_text, selected_model="gemini-3.6-flash"):
   if not api_key:
-    return (
-        "⚠️ Gemini API Key missing. Please configure it in your Streamlit"
-        " Secrets."
-    )
+    return "⚠️ Gemini API Key missing. Please configure it in Streamlit Secrets."
   try:
     client = genai.Client(api_key=api_key)
-    # Attempt request with automatic retry logic for transient issues
     for attempt in range(2):
       try:
         response = client.models.generate_content(
@@ -179,15 +185,8 @@ def query_gemini_safely(prompt_text, selected_model="gemini-2.5-flash"):
     err_msg = str(e)
     if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
       return (
-          "⚠️ **Rate Limit Exceeded:** You have hit the free tier limit for"
-          f" `{selected_model}`. Please wait a moment or switch to another model"
-          " in the dropdown above."
-      )
-    elif "404" in err_msg or "NOT_FOUND" in err_msg:
-      return (
-          f"⚠️ **Model Error:** The model `{selected_model}` is currently"
-          " unavailable or restricted on your API tier. Try using"
-          " `gemini-2.5-flash`."
+          f"⚠️ **Rate Limit Exceeded:** Model `{selected_model}` is busy. Please"
+          " wait a moment."
       )
     else:
       return f"⚠️ **API Error:** {err_msg}"
@@ -199,12 +198,12 @@ def query_gemini_safely(prompt_text, selected_model="gemini-2.5-flash"):
 if not st.session_state.user_name and not st.session_state.is_guest:
   st.markdown(
       "<div style='max-width: 480px; margin: 50px auto; padding: 30px;"
-      " background-color: #1e1f20; border: 1px solid #444746; border-radius:"
-      " 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);'>"
+      " background-color: #ffffff; border: 2px solid #fce8e6; border-radius:"
+      " 24px; box-shadow: 0 8px 24px rgba(217,48,37,0.08);'>"
       "<div style='text-align: center; margin-bottom: 20px;'><h2"
-      " style='color: #e3e3e3; margin-bottom: 5px;'>✨ Gemini"
-      " Workspace</h2><p style='color: #8e918f; font-size: 14px;'>Secure"
-      " Portal</p></div>",
+      " style='color: #d93025; margin-bottom: 5px; font-weight: 700;'>✨ Gemini"
+      " Workspace</h2><p style='color: #5f6368; font-size: 14px;'>Secure Red &"
+      " White Portal</p></div>",
       unsafe_allow_html=True,
   )
   col_s1, col_center, col_s2 = st.columns([0.1, 3.8, 0.1])
@@ -268,9 +267,9 @@ if not st.session_state.user_name and not st.session_state.is_guest:
             st.rerun()
 
       st.markdown(
-          "<div style='border-top: 1px solid #444746; margin: 20px 0;"
-          " text-align: center;'><span style='background-color: #1e1f20; padding:"
-          " 0 10px; color: #8e918f;'>OR</span></div>",
+          "<div style='border-top: 2px solid #fce8e6; margin: 20px 0;"
+          " text-align: center;'><span style='background-color: #ffffff; padding:"
+          " 0 10px; color: #5f6368; font-weight: 600;'>OR</span></div>",
           unsafe_allow_html=True,
       )
       if st.button("👤 Continue as Guest", use_container_width=True):
@@ -286,7 +285,8 @@ if not st.session_state.user_name and not st.session_state.is_guest:
 # ==========================================
 with st.sidebar:
   st.markdown(
-      "<h3 style='color: #e3e3e3; font-size: 18px;'>✨ Gemini Workspace</h3>",
+      "<h3 style='color: #d93025; font-size: 20px; font-weight: 700;'>✨ Gemini"
+      " Workspace</h3>",
       unsafe_allow_html=True,
   )
   st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
@@ -310,7 +310,10 @@ with st.sidebar:
     st.session_state.active_view = "📓 Notebook"
     st.rerun()
 
-  st.markdown("<div style='margin-top: 40px;'>---</div>", unsafe_allow_html=True)
+  st.markdown(
+      "<div style='margin-top: 40px; border-top: 1px solid #fce8e6;'></div>",
+      unsafe_allow_html=True,
+  )
   st.write(f"👤 **{st.session_state.user_name}**")
   if st.button("🚪 Logout"):
     st.session_state.user_name = None
@@ -319,32 +322,30 @@ with st.sidebar:
 
 
 # ==========================================
-# MODULE 1: Chat Assistant with Model Switcher
+# MODULE 1: Chat Assistant (Optimized: 3.6-flash & 3.1-flash-lite)
 # ==========================================
 if st.session_state.active_view == "💬 Chat Assistant":
   col_title, col_model = st.columns([2.2, 1.8])
   with col_title:
     if not st.session_state.chat_messages:
       st.markdown(
-          "<h1 style='color: #e3e3e3; font-weight: 500; font-size:"
-          f" 24px;'>Hello, {st.session_state.user_name}</h1>",
+          "<h1 style='color: #202124; font-weight: 700; font-size:"
+          f" 26px;'>Hello, {st.session_state.user_name}</h1>",
           unsafe_allow_html=True,
       )
       st.markdown(
-          "<h2 style='color: #8e918f; font-weight: 400; font-size:"
+          "<h2 style='color: #5f6368; font-weight: 500; font-size:"
           " 20px;'>How can I help you today?</h2>",
           unsafe_allow_html=True,
       )
   with col_model:
     selected_model = st.selectbox(
         "🧠 Select Model",
-        [
-            "gemini-2.5-flash",
-            "gemini-2.5-pro",
-            "gemini-3.6-flash",
-            "gemini-3.1-flash-lite",
-        ],
-        help="Switch between reliable production models instantly.",
+        ["gemini-3.6-flash", "gemini-3.1-flash-lite"],
+        help=(
+            "Switch between Gemini 3.6 Flash (High Performance) and 3.1 Flash"
+            " Lite (Ultra Fast)."
+        ),
     )
 
   for message in st.session_state.chat_messages:
@@ -385,8 +386,8 @@ if st.session_state.active_view == "💬 Chat Assistant":
 elif st.session_state.active_view == "🔍 Search chats":
   st.title("🔍 Search Your Chats")
   st.markdown(
-      "<p style='color: #8e918f;'>Quickly find content from your active"
-      " session history.</p><hr>",
+      "<p style='color: #5f6368;'>Quickly find content from your active session"
+      " history.</p><hr>",
       unsafe_allow_html=True,
   )
 
@@ -417,13 +418,14 @@ elif st.session_state.active_view == "🎓 Students":
   else:
     st.title("🎓 Student Workspace")
     st.markdown(
-        "<p style='color: #8e918f;'>Supercharge your learning with AI tools.</p>",
+        "<p style='color: #5f6368;'>Supercharge your learning with detailed AI"
+        " tools.</p>",
         unsafe_allow_html=True,
     )
     tab_learn, tab_quiz = st.tabs(["📖 Socratic Tutor", "📝 Quiz Generator"])
 
     with tab_learn:
-      st.subheader("AI Study Guide")
+      st.subheader("AI Detailed Study Guide")
       for m in st.session_state.student_chat:
         with st.chat_message(
             m["role"], avatar="👤" if m["role"] == "user" else "✨"
@@ -433,7 +435,8 @@ elif st.session_state.active_view == "🎓 Students":
         st.session_state.student_chat.append({"role": "user", "content": s_q})
         with st.chat_message("assistant", avatar="✨"):
           s_reply = query_gemini_safely(
-              f"Act as a Socratic tutor answering: {s_q}"
+              f"Act as a detailed Socratic tutor answering: {s_q}",
+              selected_model="gemini-3.6-flash",
           )
           st.markdown(s_reply)
           st.session_state.student_chat.append(
@@ -441,12 +444,13 @@ elif st.session_state.active_view == "🎓 Students":
           )
 
     with tab_quiz:
-      st.subheader("Quick Practice Test")
+      st.subheader("Interactive Practice Quiz")
       q_topic = st.text_input("Enter subject topic:")
-      if st.button("Generate Quiz"):
+      if st.button("Generate Detailed Quiz"):
         if q_topic:
           quiz_res = query_gemini_safely(
-              f"Create a 3-question multiple-choice quiz about {q_topic}."
+              f"Create a detailed 3-question multiple-choice quiz with explanations about {q_topic}.",
+              selected_model="gemini-3.6-flash",
           )
           st.markdown(quiz_res)
 
@@ -457,7 +461,7 @@ elif st.session_state.active_view == "🎓 Students":
 elif st.session_state.active_view == "📁 Library":
   st.title("📁 Media Library")
   st.markdown(
-      "<p style='color: #8e918f;'>Your saved generations.</p><hr>",
+      "<p style='color: #5f6368;'>Your saved generations.</p><hr>",
       unsafe_allow_html=True,
   )
   if not st.session_state.saved_images:
@@ -470,26 +474,24 @@ elif st.session_state.active_view == "📁 Library":
 elif st.session_state.active_view == "🎨 Image Generator":
   st.title("🎨 Image Generation Studio")
   st.markdown("<hr>", unsafe_allow_html=True)
-  img_prompt = st.text_area("Describe your image:")
-  if st.button("✨ Generate Image"):
-    st.info(
-        "Image generation requires a supported image model. Use standard text"
-        " models above for general tasks."
-    )
+  st.info(
+      "Use the 💬 Chat Assistant with Gemini 3.6 Flash for detailed text-based"
+      " prompt engineering and design blueprints."
+  )
 
 
 # ==========================================
 # MODULE 5: Notebooks
 # ==========================================
 elif st.session_state.active_view == "📓 Notebook":
-  st.title("📓 Private Notes")
+  st.title("📓 Private Detailed Notes")
   st.markdown("<hr>", unsafe_allow_html=True)
   c1, c2 = st.columns([1, 2])
   with c1:
     if st.button("➕ New Note"):
       st.session_state.notes.append({
           "id": len(st.session_state.notes),
-          "title": "New Note",
+          "title": "New Detailed Note",
           "content": "",
       })
     for idx, n in enumerate(st.session_state.notes):
@@ -500,7 +502,9 @@ elif st.session_state.active_view == "📓 Notebook":
     if curr < len(st.session_state.notes):
       note = st.session_state.notes[curr]
       ntitle = st.text_input("Title", value=note["title"])
-      ncontent = st.text_area("Content", value=note["content"], height=300)
+      ncontent = st.text_area(
+          "Detailed Content", value=note["content"], height=350
+      )
       if st.button("💾 Save Note"):
         st.session_state.notes[curr]["title"] = ntitle
         st.session_state.notes[curr]["content"] = ncontent
