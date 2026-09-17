@@ -75,7 +75,7 @@ if "studio_output" not in st.session_state:
 # Sidebar Navigation
 # ==========================================
 with st.sidebar:
-  st.markdown("### ✨ Gemini Studio")
+  st.markdown("### 💎 Gemini Studio")
   app_mode = st.radio(
       "Navigation",
       [
@@ -192,7 +192,7 @@ elif app_mode == "🎨 Image Generator":
     aspect_ratio = st.selectbox(
         "Aspect Ratio", ["1:1 (Square)", "16:9 (Landscape)", "9:16 (Portrait)"]
     )
-    gen_image_btn = st.button("✨ Generate Image")
+    gen_image_btn = st.button("💎 Generate Image")
 
   with col2:
     st.markdown("#### 🖼️ Output Preview")
