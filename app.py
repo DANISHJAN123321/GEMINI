@@ -6,11 +6,11 @@ from google.genai import types
 import streamlit as st
 
 # ==========================================
-# Page Configuration & Exact Gemini UI Theme
+# Page Configuration & Custom Icon
 # ==========================================
 st.set_page_config(
     page_title="Gemini",
-    page_icon="✨",
+    page_icon="gemini_star.png",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -359,37 +359,123 @@ elif st.session_state.active_view == "🎓 Students":
 
         # --- QUIZ YOURSELF ---
         with tab_quiz:
-            st.subheader("Generate Custom Practice Tests")
-            quiz_topic = st.text_input("Enter a subject or paste your notes to generate a quiz:")
-            if st.button("📝 Generate Quiz"):
+            st.subheader("Interactive AI Practice Test")
+            quiz_topic = st.text_input("Enter a subject or paste your notes to generate an interactive quiz:")
+            if st.button("📝 Generate Interactive Quiz"):
                 if quiz_topic:
-                    with st.spinner("Generating quiz..."):
-                        q_prompt = f"Create a 3-question multiple-choice quiz about: '{quiz_topic}'. Include the answer key at the very bottom."
-                        st.markdown(query_gemini_text(q_prompt))
+                    with st.spinner("Generating quiz questions..."):
+                        q_prompt = (
+                            f"Create a 3-question multiple choice quiz about '{quiz_topic}'. "
+                            "Format each question EXACTLY using these tags:\n"
+                            "QUESTION: [Question text]\n"
+                            "A) [Option A text]\n"
+                            "B) [Option B text]\n"
+                            "C) [Option C text]\n"
+                            "D) [Option D text]\n"
+                            "CORRECT: [A, B, C, or D]\n"
+                        )
+                        q_res = query_gemini_text(q_prompt)
+                        
+                        quiz_list = []
+                        blocks = q_res.split("QUESTION:")
+                        for block in blocks:
+                            if not block.strip():
+                                continue
+                            lines = [l.strip() for l in block.split("\n") if l.strip()]
+                            if len(lines) >= 6:
+                                q_text = lines[0]
+                                opts = {
+                                    "A": lines[1][2:].strip(),
+                                    "B": lines[2][2:].strip(),
+                                    "C": lines[3][2:].strip(),
+                                    "D": lines[4][2:].strip()
+                                }
+                                corr_line = [l for l in lines if l.startswith("CORRECT:")]
+                                correct_ans = corr_line[0].replace("CORRECT:", "").strip()[:1].upper() if corr_line else "A"
+                                quiz_list.append({"q": q_text, "options": opts, "correct": correct_ans})
+                        
+                        st.session_state.active_quiz = quiz_list
+                        st.success("Quiz generated successfully! Answer below:")
                 else:
                     st.warning("Please enter a topic.")
 
+            if "active_quiz" in st.session_state and st.session_state.active_quiz:
+                st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+                user_answers = {}
+                for idx, q_item in enumerate(st.session_state.active_quiz):
+                    st.markdown(f"**Q{idx+1}: {q_item['q']}**")
+                    opt_keys = list(q_item["options"].keys())
+                    formatted_opts = [f"{k}) {q_item['options'][k]}" for k in opt_keys]
+                    
+                    selected = st.radio(
+                        f"Select your answer for Question {idx+1}",
+                        formatted_opts,
+                        key=f"quiz_q_{idx}",
+                        label_visibility="collapsed"
+                    )
+                    user_answers[idx] = selected[0]
+                    st.markdown("---")
+
+                if st.button("📊 Submit and Grade Quiz"):
+                    score = 0
+                    total = len(st.session_state.active_quiz)
+                    for idx, q_item in enumerate(st.session_state.active_quiz):
+                        if user_answers.get(idx) == q_item["correct"]:
+                            score += 1
+                    
+                    if score == total:
+                        st.success(f"🎉 Excellent work! Your Score: **{score}/{total}**")
+                    elif score >= total / 2:
+                        st.info(f"👍 Good job! Your Score: **{score}/{total}**")
+                    else:
+                        st.warning(f"💡 Keep practicing! Your Score: **{score}/{total}**")
+
         # --- FLASHCARDS ---
         with tab_flash:
-            st.subheader("AI Flashcard Generator")
+            st.subheader("Interactive AI Flashcard Deck")
             flash_topic = st.text_input("Enter a topic for flashcards:")
-            if st.button("🗂️ Create Flashcards"):
+            if st.button("🗂️ Generate Flashcard Deck"):
                 if flash_topic:
-                    with st.spinner("Generating flashcards..."):
+                    with st.spinner("Generating interactive flashcards..."):
                         f_prompt = f"Generate 5 distinct flashcards for '{flash_topic}'. Format EXACTLY like this: 'TERM: [term] | DEF: [definition]'. Do not include any other text."
                         f_res = query_gemini_text(f_prompt)
                         
+                        deck = []
                         lines = f_res.split("\n")
                         for line in lines:
                             if "TERM:" in line and "DEF:" in line:
                                 parts = line.split("| DEF:")
                                 term = parts[0].replace("TERM:", "").strip()
                                 definition = parts[1].strip() if len(parts) > 1 else ""
-                                
-                                with st.expander(f"**{term}**"):
-                                    st.markdown(f"<p style='color:#e3e3e3; font-size: 16px; padding: 10px;'>{definition}</p>", unsafe_allow_html=True)
+                                if term and definition:
+                                    deck.append({"term": term, "def": definition})
+                        st.session_state.flashcard_deck = deck
+                        st.success("Flashcard deck generated successfully!")
                 else:
                     st.warning("Please enter a topic.")
+
+            if "flashcard_deck" in st.session_state and st.session_state.flashcard_deck:
+                st.markdown("<div style='margin-top: 20px;'></div>", unsafe_allow_html=True)
+                for idx, card in enumerate(st.session_state.flashcard_deck):
+                    flip_key = f"flip_{idx}"
+                    if flip_key not in st.session_state:
+                        st.session_state[flip_key] = False
+                    
+                    is_flipped = st.session_state[flip_key]
+                    content_to_show = card["term"] if not is_flipped else card["def"]
+                    card_title = f"Flashcard {idx+1} ({'Definition' if is_flipped else 'Term'})"
+                    label_text = "💡 Click to see Definition" if not is_flipped else "🔄 Click to see Term"
+                    
+                    st.markdown(f"""
+                    <div style="background-color: #1e1f20; border: 1px solid #444746; border-radius: 16px; padding: 25px; text-align: center; margin-bottom: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                        <p style="color: #8e918f; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">{card_title}</p>
+                        <h3 style="color: #e3e3e3; font-size: 20px; font-weight: 500; margin-bottom: 0;">{content_to_show}</h3>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    if st.button(label_text, key=f"btn_card_{idx}", use_container_width=True):
+                        st.session_state[flip_key] = not is_flipped
+                        st.rerun()
 
         # --- IMMERSIVE VIEW ---
         with tab_focus:
@@ -439,17 +525,22 @@ elif st.session_state.active_view == "🎨 Image Generator":
                     try:
                         client = genai.Client(api_key=api_key)
                         res = client.models.generate_content(
-                            model="gemini-3.6-flash", 
+                            model="gemini-3.1-flash-image", 
                             contents=img_prompt, 
                             config=types.GenerateContentConfig(response_modalities=["IMAGE"])
                         )
+                        image_saved = False
                         for candidate in res.candidates:
                             for part in candidate.content.parts:
                                 if part.inline_data:
                                     img_bytes = part.inline_data.data
                                     st.session_state.saved_images.append({"bytes": img_bytes, "prompt": img_prompt})
-                                    st.success("Image generated and saved to your 📁 Library!")
-                                    st.rerun()
+                                    image_saved = True
+                        if image_saved:
+                            st.success("Image generated and saved to your 📁 Library!")
+                            st.rerun()
+                        else:
+                            st.error("No image data returned. Please try modifying your prompt.")
                     except Exception as e:
                         st.error(f"Generation Error: {e}")
         with col2:
