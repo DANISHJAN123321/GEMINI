@@ -19,22 +19,23 @@ st.markdown(
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
 
-    /* Global Dark Theme Background - No White Sections */
-    .stApp { 
+    /* Global Dark Theme Background - Zero White Bleed Everywhere */
+    .stApp, .main, [data-testid="stAppViewContainer"], [data-testid="stHeader"], [data-testid="stBottom"], [data-testid="stBottomBlockContainer"] { 
         background-color: #131314 !important; 
         color: #e3e3e3 !important; 
         font-family: 'Google Sans', sans-serif;
     }
     
-    /* Remove White Header/Top Bar */
     header[data-testid="stHeader"] {
         background-color: transparent !important;
+        visibility: hidden;
     }
     
-    /* Remove Default Block Containers White Background padding */
-    .main .block-container {
+    .block-container {
         background-color: #131314 !important;
         color: #e3e3e3 !important;
+        padding-top: 2rem;
+        padding-bottom: 120px;
     }
 
     /* Sidebar Styling */
@@ -47,16 +48,25 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* Chat Input Box Styling & Dark Container Override */
+    /* Completely Dark Bottom Container for Chat Input (Removes the white area circled) */
+    [data-testid="stBottom"] {
+        background-color: #131314 !important;
+        border-top: none !important;
+    }
+    [data-testid="stBottomBlockContainer"] {
+        background-color: #131314 !important;
+    }
+    
+    /* Chat Input Container & Box Styling */
+    div[data-testid="stChatInputContainer"] {
+        background-color: #131314 !important;
+        border-top: none !important;
+    }
     .stChatInput {
         background-color: #1e1f20 !important;
         border: 1px solid #444746 !important;
         border-radius: 28px !important;
         padding: 4px !important;
-    }
-    div[data-testid="stChatInputContainer"] {
-        background-color: #131314 !important;
-        border-top: none !important;
     }
     .stChatInput textarea {
         background-color: transparent !important;
@@ -85,7 +95,7 @@ st.markdown(
         border-color: #8e918f;
     }
 
-    /* Clean Chat Message Bubbles & Prevent Overlay */
+    /* Clean Chat Message Bubbles - Prevent Text Overlap & Artifacts */
     div[data-testid="stChatMessage"] {
         background-color: transparent !important;
         padding: 12px 0 !important;
@@ -93,7 +103,8 @@ st.markdown(
     }
     div[data-testid="stChatMessage"] p, 
     div[data-testid="stChatMessage"] span, 
-    div[data-testid="stChatMessage"] li {
+    div[data-testid="stChatMessage"] li,
+    div[data-testid="stChatMessage"] div {
         color: #e3e3e3 !important;
         font-family: 'Google Sans', sans-serif !important;
         background: transparent !important;
@@ -119,24 +130,28 @@ if "is_guest" not in st.session_state:
   st.session_state.is_guest = False
 
 # ==========================================
-# Authentication & Name Entry Screen (If not logged in / guest)
+# Authentication & Name Entry Screen
 # ==========================================
 if not st.session_state.user_name and not st.session_state.is_guest:
   st.markdown(
-      "<div style='max-width: 450px; margin: 80px auto; padding: 30px;"
+      "<div style='max-width: 450px; margin: 100px auto; padding: 35px;"
       " background-color: #1e1f20; border: 1px solid #444746; border-radius:"
-      " 16px; text-align: center;'>"
-      "<h2 style='color: #e3e3e3; margin-bottom: 10px;'>✨ Welcome to"
-      " Gemini</h2>"
-      "<p style='color: #8e918f; font-size: 14px; margin-bottom: 25px;'>Please"
-      " enter your name to sign in, or proceed as a free guest.</p>"
+      " 16px; text-align: center; box-shadow: 0 8px 24px rgba(0,0,0,0.5);'>"
+      "<h2 style='color: #e3e300; margin-bottom: 10px;'>✨ Gemini</h2>"
+      "<h3 style='color: #e3e3e3; font-size: 20px; margin-bottom: 15px;'>Welcome"
+      "</h3>"
+      "<p style='color: #8e918f; font-size: 14px; margin-bottom: 25px;'>Enter"
+      " your name to sign in, or continue as a free guest.</p>"
       "</div>",
       unsafe_allow_html=True,
   )
 
-  col_login1, col_login2 = st.columns(2)
-  with col_login1:
-    entered_name = st.text_input("Your Name", placeholder="Enter your full name")
+  col_space1, col_center, col_space2 = st.columns([1, 1.2, 1])
+  with col_center:
+    entered_name = st.text_input(
+        "Your Name", placeholder="Enter your name...", label_visibility="collapsed"
+    )
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     if st.button("🚀 Register / Sign In", use_container_width=True):
       if entered_name.strip():
         st.session_state.user_name = entered_name.strip()
@@ -144,16 +159,18 @@ if not st.session_state.user_name and not st.session_state.is_guest:
         st.rerun()
       else:
         st.warning("Please enter a valid name.")
-  with col_login2:
+
     st.markdown(
-        "<div style='height: 29px;'></div>", unsafe_allow_html=True
-    )  # alignment spacer
+        "<div style='text-align: center; color: #8e918f; margin: 10px"
+        " 0;'>or</div>",
+        unsafe_allow_html=True,
+    )
     if st.button("👤 Continue as Free Guest", use_container_width=True):
       st.session_state.user_name = "Guest"
       st.session_state.is_guest = True
       st.rerun()
 
-  st.stop()  # Halt execution until user authenticates
+  st.stop()
 
 # ==========================================
 # Sidebar Navigation
@@ -218,13 +235,13 @@ with st.sidebar:
       unsafe_allow_html=True,
   )
   st.markdown(
-      "<p style='color:#c4c7c5; font-size: 13px; padding: 2px 0; cursor:"
-      " pointer;'>🔥 Building a Free Fire Panel</p>",
+      "<p style='color:#c4c7c5; font-size: 13px; padding: 2px 0;'>🔥 Building"
+      " a Free Fire Panel</p>",
       unsafe_allow_html=True,
   )
   st.markdown(
-      "<p style='color:#c4c7c5; font-size: 13px; padding: 2px 0; cursor:"
-      " pointer;'>🚀 15-Day Software Development Roadmap</p>",
+      "<p style='color:#c4c7c5; font-size: 13px; padding: 2px 0;'>🚀 15-Day"
+      " Software Development Roadmap</p>",
       unsafe_allow_html=True,
   )
 
@@ -247,7 +264,7 @@ with st.sidebar:
       st.rerun()
 
 
-# Helper function to handle transient API errors automatically
+# Helper function for API retries
 def call_gemini_with_retry(api_call_func, max_retries=3):
   for attempt in range(max_retries):
     try:
@@ -271,12 +288,12 @@ def call_gemini_with_retry(api_call_func, max_retries=3):
 # ==========================================
 if st.session_state.active_view == "💬 Chat Assistant":
   if not st.session_state.chat_messages:
-    display_name = (
+    greeting_name = (
         "Guest" if st.session_state.is_guest else st.session_state.user_name
     )
     st.markdown(
         f"<h2 style='color: #c4c7c5; font-weight: 400; margin-top: 10px;"
-        f" margin-bottom: 0px;'>Hello, {display_name}</h2>",
+        f" margin-bottom: 0px;'>Hello, {greeting_name}</h2>",
         unsafe_allow_html=True,
     )
     st.markdown(
@@ -363,19 +380,19 @@ if st.session_state.active_view == "💬 Chat Assistant":
 
   st.markdown(
       "<p style='text-align: center; color: #8e918f; font-size: 11px; margin-top:"
-      " 10px;'>Gemini is AI and can make mistakes.</p>",
+      " 20px;'>Gemini is AI and can make mistakes.</p>",
       unsafe_allow_html=True,
   )
 
 
 # ==========================================
-# MODULE 2: Image Generator View (Restricted for Guests)
+# MODULE 2: Image Generator View (Guest Restricted)
 # ==========================================
 elif st.session_state.active_view == "🎨 Image Generator":
   if st.session_state.is_guest:
-    st.error("🔒 Access Restricted")
+    st.error("🔒 Feature Restricted for Guests")
     st.warning(
-        "Free guests cannot use the **Image Generator** feature. Please log in"
+        "Free guests cannot use the **Image Generator** feature. Please sign in"
         " with a registered account to unlock this feature!"
     )
     if st.button("🔑 Switch to Registered Account"):
@@ -463,11 +480,11 @@ elif st.session_state.active_view == "🎨 Image Generator":
 
 
 # ==========================================
-# MODULE 3: Notebook View (Restricted for Guests)
+# MODULE 3: Notebook View (Guest Restricted)
 # ==========================================
 elif st.session_state.active_view == "📓 Notebook":
   if st.session_state.is_guest:
-    st.error("🔒 Access Restricted")
+    st.error("🔒 Feature Restricted for Guests")
     st.warning(
         "Free guests cannot access **Notebooks**. Please sign in with a"
         " registered account to use this feature!"
@@ -500,7 +517,4 @@ else:
       unsafe_allow_html=True,
   )
   st.markdown("---")
-  st.info(
-      "Use the sidebar to return to the **💬 Chat Assistant** or **🎨 Image"
-      " Generator**."
-  )
+  st.info("Use the sidebar to return to the active workspace.")
