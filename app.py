@@ -29,7 +29,7 @@ st.markdown(
         border-right: 1px solid #282a2c;
     }
     
-    /* Input Fields Fix - Ensure text is bright white and legible */
+    /* Fixed Input Text Visibility - Bright White */
     .stTextInput input, .stTextArea textarea {
         background-color: #1e1f20 !important;
         color: #ffffff !important;
@@ -42,6 +42,11 @@ st.markdown(
         box-shadow: 0 0 0 1px #a8c7fa !important;
     }
     
+    /* Chat input box styling to match floating bar */
+    .stChatInputContainer {
+        padding-bottom: 20px;
+    }
+
     /* Buttons Styling */
     div.stButton > button:first-child {
         background: #a8c7fa;
@@ -57,7 +62,7 @@ st.markdown(
         background: #d3e3fd;
     }
 
-    /* Radio button / Selectbox styling tweaks */
+    /* Radio button / Selectbox labels */
     .stRadio label, .stSelectbox label {
         color: #c4c7c5 !important;
     }
@@ -112,16 +117,17 @@ if app_mode == "💬 Chat Assistant":
   )
   st.markdown("---")
 
-  # Display past messages
+  # Display past messages safely
   for message in st.session_state.chat_messages:
     with st.chat_message(message["role"]):
       st.markdown(message["content"])
 
-  # User chat input
-  if user_query := st.chat_input("Enter a prompt here..."):
+  # User chat input (Allows continuous multi-turn dialogue without freezing)
+  if user_query := st.chat_input("Ask Gemini..."):
     if not api_key:
       st.error("API Key not found in Streamlit Secrets!")
     else:
+      # Append user message
       st.session_state.chat_messages.append(
           {"role": "user", "content": user_query}
       )
@@ -132,11 +138,11 @@ if app_mode == "💬 Chat Assistant":
         with st.spinner("Gemini is thinking..."):
           try:
             client = genai.Client(api_key=api_key)
+            # Format multi-turn history properly for gemini-3.6-flash
             formatted_history = [
                 {"role": m["role"], "parts": [{"text": m["content"]}]}
                 for m in st.session_state.chat_messages[:-1]
             ]
-            # Updated to use gemini-3.6-flash
             chat = client.chats.create(
                 model="gemini-3.6-flash", history=formatted_history
             )
@@ -190,7 +196,6 @@ elif app_mode == "🎨 Image Generator":
             client = genai.Client(api_key=api_key)
             ratio_code = aspect_ratio.split(" ")[0]
 
-            # Updated to use gemini-3.6-flash
             response = client.models.generate_content(
                 model="gemini-3.6-flash",
                 contents=image_prompt,
@@ -296,12 +301,11 @@ elif app_mode == "✍️ Prompt & Copywriting Studio":
                 " lines for this topic."
             )
 
-          # Updated to use gemini-3.6-flash
           response = client.models.generate_content(
               model="gemini-3.6-flash",
               contents=raw_input,
               config=types.GenerateContentConfig(
-                  system_instruction=instruction, temperature=0.7
+                  system_instruction=instruction
               ),
           )
           st.session_state.studio_output = response.text.strip()
