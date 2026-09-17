@@ -1,4 +1,5 @@
 import os
+import random
 import time
 from google import genai
 from google.genai import types
@@ -101,441 +102,394 @@ st.markdown(
         padding: 12px 0 !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.03);
     }
-    div[data-testid="stChatMessage"] p, 
-    div[data-testid="stChatMessage"] span, 
-    div[data-testid="stChatMessage"] li,
-    div[data-testid="stChatMessage"] div {
-        color: #e3e3e3 !important;
-        font-family: 'Google Sans', sans-serif !important;
-        background: transparent !important;
-    }
+    
+    /* Custom UI for Tabs & Expanders (Student & Notebook Features) */
+    .stTabs [data-baseweb="tab-list"] { background-color: transparent; border-bottom: 1px solid #282a2c; }
+    .stTabs [data-baseweb="tab"] { color: #8e918f !important; font-family: 'Google Sans', sans-serif; }
+    .stTabs [aria-selected="true"] { color: #e3e3e3 !important; border-bottom: 2px solid #e3e3e3 !important; }
+    div[data-testid="stExpander"] { background-color: #1e1f20 !important; border: 1px solid #444746 !important; border-radius: 12px !important; }
+    div[data-testid="stExpander"] summary p { color: #e3e3e3 !important; font-weight: 500 !important; font-size: 16px; }
+    
+    /* Immersive View Styling */
+    .immersive-view { background-color: #131314; padding: 40px; border-radius: 20px; border: 1px solid #444746; font-size: 18px; line-height: 1.8; color: #f0f0f0; }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
-# Initialize Gemini Client securely via Streamlit Secrets
+# Initialize Gemini Client securely
 api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
+
 # ==========================================
-# Session State Initialization (Account & Chat)
+# Session State Initialization (Global & Features)
 # ==========================================
 if "chat_messages" not in st.session_state:
-  st.session_state.chat_messages = []
+    st.session_state.chat_messages = []
+if "student_chat" not in st.session_state:
+    st.session_state.student_chat = []
+if "saved_images" not in st.session_state:
+    st.session_state.saved_images = []  # Stores dicts: {bytes, prompt}
+if "notes" not in st.session_state:
+    st.session_state.notes = [{"id": 0, "title": "Welcome to Notebooks", "content": "Write your ideas, code snippets, and study materials here!"}]
 if "active_view" not in st.session_state:
-  st.session_state.active_view = "💬 Chat Assistant"
+    st.session_state.active_view = "💬 Chat Assistant"
 if "user_name" not in st.session_state:
-  st.session_state.user_name = None
+    st.session_state.user_name = None
 if "is_guest" not in st.session_state:
-  st.session_state.is_guest = False
+    st.session_state.is_guest = False
+
+# Auth States
+if "registered_users" not in st.session_state:
+    st.session_state.registered_users = {}
+if "auth_step" not in st.session_state:
+    st.session_state.auth_step = "login_register"
+if "pending_reg" not in st.session_state:
+    st.session_state.pending_reg = {}
+if "verification_code" not in st.session_state:
+    st.session_state.verification_code = ""
+
+if "captcha_q" not in st.session_state:
+    n1, n2 = random.randint(1, 9), random.randint(1, 9)
+    st.session_state.captcha_q = f"{n1} + {n2}"
+    st.session_state.captcha_ans = str(n1 + n2)
+
+# Helper function for API retries
+def call_gemini_with_retry(api_call_func, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            return api_call_func()
+        except Exception as e:
+            err_str = str(e)
+            if ("503" in err_str or "429" in err_str) and attempt < max_retries - 1:
+                time.sleep(2 * (attempt + 1))
+                continue
+            else:
+                raise e
+
+# Simple Text Completion Helper
+def query_gemini_text(prompt_text):
+    if not api_key:
+        return "⚠️ Please configure your Gemini API Key."
+    client = genai.Client(api_key=api_key)
+    def fetch():
+        return client.models.generate_content(model="gemini-3.6-flash", contents=prompt_text)
+    response = call_gemini_with_retry(fetch)
+    return response.text
+
 
 # ==========================================
-# Authentication & Name Entry Screen
+# Authentication Hub
 # ==========================================
 if not st.session_state.user_name and not st.session_state.is_guest:
-  st.markdown(
-      "<div style='max-width: 450px; margin: 100px auto; padding: 35px;"
-      " background-color: #1e1f20; border: 1px solid #444746; border-radius:"
-      " 16px; text-align: center; box-shadow: 0 8px 24px rgba(0,0,0,0.5);'>"
-      "<h2 style='color: #e3e300; margin-bottom: 10px;'>✨ Gemini</h2>"
-      "<h3 style='color: #e3e3e3; font-size: 20px; margin-bottom: 15px;'>Welcome"
-      "</h3>"
-      "<p style='color: #8e918f; font-size: 14px; margin-bottom: 25px;'>Enter"
-      " your name to sign in, or continue as a free guest.</p>"
-      "</div>",
-      unsafe_allow_html=True,
-  )
-
-  col_space1, col_center, col_space2 = st.columns([1, 1.2, 1])
-  with col_center:
-    entered_name = st.text_input(
-        "Your Name", placeholder="Enter your name...", label_visibility="collapsed"
-    )
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-    if st.button("🚀 Register / Sign In", use_container_width=True):
-      if entered_name.strip():
-        st.session_state.user_name = entered_name.strip()
-        st.session_state.is_guest = False
-        st.rerun()
-      else:
-        st.warning("Please enter a valid name.")
-
     st.markdown(
-        "<div style='text-align: center; color: #8e918f; margin: 10px"
-        " 0;'>or</div>",
+        "<div style='max-width: 480px; margin: 50px auto; padding: 30px; background-color: #1e1f20; border: 1px solid #444746; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);'>"
+        "<div style='text-align: center; margin-bottom: 20px;'><h2 style='color: #e3e300; margin-bottom: 5px;'>✨ Gemini Workspace</h2><p style='color: #8e918f; font-size: 14px;'>Secure Authentication Portal</p></div>",
         unsafe_allow_html=True,
     )
-    if st.button("👤 Continue as Free Guest", use_container_width=True):
-      st.session_state.user_name = "Guest"
-      st.session_state.is_guest = True
-      st.rerun()
+    col_space1, col_center, col_space2 = st.columns([0.1, 3.8, 0.1])
+    with col_center:
+        if st.session_state.auth_step == "verify_email":
+            st.info(f"🔐 [Simulation Notice] Code: **{st.session_state.verification_code}**")
+            entered_code = st.text_input("Enter 6-digit Code", max_chars=6)
+            col_v1, col_v2 = st.columns(2)
+            with col_v1:
+                if st.button("❌ Cancel", use_container_width=True):
+                    st.session_state.auth_step = "login_register"
+                    st.rerun()
+            with col_v2:
+                if st.button("✅ Verify", use_container_width=True):
+                    if entered_code == st.session_state.verification_code:
+                        p_data = st.session_state.pending_reg
+                        st.session_state.registered_users[p_data["email"]] = p_data
+                        st.session_state.user_name = p_data["name"]
+                        st.session_state.auth_step = "login_register"
+                        st.rerun()
+                    else:
+                        st.error("Invalid verification code.")
+        else:
+            auth_tab1, auth_tab2 = st.tabs(["🔑 Sign In", "📝 Register"])
+            with auth_tab1:
+                si_email = st.text_input("Email", placeholder="name@example.com", key="si_email")
+                si_pass = st.text_input("Password", type="password", key="si_pass")
+                if st.button("🚀 Sign In", use_container_width=True):
+                    user_record = st.session_state.registered_users.get(si_email)
+                    if user_record and user_record["password"] == si_pass:
+                        st.session_state.user_name = user_record["name"]
+                        st.rerun()
+                    else:
+                        st.error("Invalid email or password.")
+            with auth_tab2:
+                reg_name = st.text_input("Full Name", key="reg_name")
+                reg_email = st.text_input("Email Address", key="reg_email")
+                reg_pass = st.text_input("Password", type="password", key="reg_pass")
+                st.caption(f"🔒 Prove you're human: **{st.session_state.captcha_q}** = ?")
+                reg_cap = st.text_input("Answer", key="reg_cap")
+                if st.button("📨 Send Verification Code", use_container_width=True):
+                    if reg_cap.strip() != st.session_state.captcha_ans:
+                        st.error("Incorrect CAPTCHA.")
+                    elif reg_email in st.session_state.registered_users:
+                        st.error("Email already exists.")
+                    elif reg_name and reg_email and reg_pass:
+                        st.session_state.verification_code = str(random.randint(100000, 999999))
+                        st.session_state.pending_reg = {"name": reg_name.strip(), "email": reg_email.strip(), "password": reg_pass}
+                        st.session_state.auth_step = "verify_email"
+                        st.rerun()
+            
+            st.markdown("<div style='border-top: 1px solid #444746; margin: 20px 0; text-align: center;'><span style='background-color: #1e1f20; padding: 0 10px; color: #8e918f;'>OR</span></div>", unsafe_allow_html=True)
+            if st.button("👤 Continue as Free Guest", use_container_width=True):
+                st.session_state.user_name = "Guest"
+                st.session_state.is_guest = True
+                st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.stop()
 
-  st.stop()
 
 # ==========================================
 # Sidebar Navigation
 # ==========================================
 with st.sidebar:
-  col_logo, col_opt = st.columns([4, 1])
-  with col_logo:
-    st.markdown(
-        "<h3 style='color: #e3e3e3; font-size: 18px; margin: 0; font-family:"
-        " \"Google Sans\";'>✨ Gemini</h3>",
-        unsafe_allow_html=True,
-    )
-  with col_opt:
-    st.markdown(
-        "<div style='border: 1px solid #444746; border-radius: 6px; padding:"
-        " 2px 6px; text-align: center; cursor: pointer; color: #c4c7c5; font-size:"
-        " 12px;'>🗂️</div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<h3 style='color: #e3e3e3; font-size: 18px;'>✨ Gemini</h3>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
-  st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
+    if st.button("➕ New chat"): st.session_state.active_view = "💬 Chat Assistant"; st.rerun()
+    if st.button("🔍 Search chats"): st.session_state.active_view = "🔍 Search chats"; st.rerun()
+    if st.button("🎓 Students"): st.session_state.active_view = "🎓 Students"; st.rerun()
+    if st.button("🖼️ Images"): st.session_state.active_view = "🎨 Image Generator"; st.rerun()
+    if st.button("📁 Library"): st.session_state.active_view = "📁 Library"; st.rerun()
+    if st.button("📓 Notebook"): st.session_state.active_view = "📓 Notebook"; st.rerun()
 
-  if st.button("➕ New chat", key="nav_new"):
-    st.session_state.chat_messages = []
-    st.session_state.active_view = "💬 Chat Assistant"
-    st.rerun()
-
-  if st.button("🔍 Search chats", key="nav_search"):
-    st.session_state.active_view = "🔍 Search chats"
-    st.rerun()
-
-  if st.button("🎓 Students", key="nav_students"):
-    st.session_state.active_view = "🎓 Students"
-    st.rerun()
-
-  if st.button("🖼️ Images", key="nav_images"):
-    st.session_state.active_view = "🎨 Image Generator"
-    st.rerun()
-
-  if st.button("📁 Library", key="nav_library"):
-    st.session_state.active_view = "📁 Library"
-    st.rerun()
-
-  st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-  st.markdown(
-      "<p"
-      " style='color:#8e918f;font-size:11px;font-weight:700;letter-spacing:0.5px;margin-bottom:6px;'>NOTEBOOKS</p>",
-      unsafe_allow_html=True,
-  )
-
-  if st.button("➕ New notebook", key="nav_new_nb"):
-    st.session_state.active_view = "📓 Notebook"
-    st.rerun()
-  if st.button("📓 Untitled notebook", key="nb_2"):
-    st.session_state.active_view = "📓 Notebook"
-    st.rerun()
-
-  st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-  st.markdown(
-      "<p"
-      " style='color:#8e918f;font-size:11px;font-weight:700;letter-spacing:0.5px;margin-bottom:6px;'>RECENTS</p>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      "<p style='color:#c4c7c5; font-size: 13px; padding: 2px 0;'>🔥 Building"
-      " a Free Fire Panel</p>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      "<p style='color:#c4c7c5; font-size: 13px; padding: 2px 0;'>🚀 15-Day"
-      " Software Development Roadmap</p>",
-      unsafe_allow_html=True,
-  )
-
-  st.markdown("<div style='margin-top: 40px;'></div>", unsafe_allow_html=True)
-  st.markdown("---")
-
-  col_user_img, col_user_name, col_user_set = st.columns([1, 3, 1])
-  with col_user_img:
-    st.markdown("👤")
-  with col_user_name:
-    st.markdown(
-        f"<p style='color: #e3e3e3; font-size: 13px; font-weight: 500; margin:"
-        f" 0;'>{st.session_state.user_name}</p>",
-        unsafe_allow_html=True,
-    )
-  with col_user_set:
-    if st.button("🚪", key="logout_btn", help="Switch Account / Logout"):
-      st.session_state.user_name = None
-      st.session_state.is_guest = False
-      st.rerun()
-
-
-# Helper function for API retries
-def call_gemini_with_retry(api_call_func, max_retries=3):
-  for attempt in range(max_retries):
-    try:
-      return api_call_func()
-    except Exception as e:
-      err_str = str(e)
-      if (
-          "503" in err_str
-          or "UNAVAILABLE" in err_str
-          or "429" in err_str
-          or "RESOURCE_EXHAUSTED" in err_str
-      ) and attempt < max_retries - 1:
-        time.sleep(2 * (attempt + 1))
-        continue
-      else:
-        raise e
+    st.markdown("<div style='margin-top: 40px;'>---</div>", unsafe_allow_html=True)
+    st.write(f"👤 **{st.session_state.user_name}**")
+    if st.button("🚪 Logout", help="Switch Account"):
+        st.session_state.user_name = None
+        st.session_state.is_guest = False
+        st.rerun()
 
 
 # ==========================================
-# MODULE 1: Chat Assistant View
+# MODULE 1: Main Chat Assistant
 # ==========================================
 if st.session_state.active_view == "💬 Chat Assistant":
-  if not st.session_state.chat_messages:
-    greeting_name = (
-        "Guest" if st.session_state.is_guest else st.session_state.user_name
-    )
-    st.markdown(
-        f"<h2 style='color: #c4c7c5; font-weight: 400; margin-top: 10px;"
-        f" margin-bottom: 0px;'>Hello, {greeting_name}</h2>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "<h1 style='color: #e3e3e3; font-weight: 500; margin-top: 0px;"
-        " margin-bottom: 15px;'>How can I help you today?</h1>",
-        unsafe_allow_html=True,
-    )
-  else:
+    if not st.session_state.chat_messages:
+        st.markdown(f"<h1 style='color: #e3e3e3; font-weight: 500;'>Hello, {st.session_state.user_name}</h1>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color: #8e918f; font-weight: 400;'>How can I help you today?</h2>", unsafe_allow_html=True)
+    
     for message in st.session_state.chat_messages:
-      # Explicit avatars (👤 and ✨) completely eliminate default text artifacts like 'face' or 'smart_toy'
-      avatar_icon = "👤" if message["role"] == "user" else "✨"
-      with st.chat_message(message["role"], avatar=avatar_icon):
-        st.markdown(message["content"])
-        if "file_name" in message and message["file_name"]:
-          st.caption(f"📎 Attached file: {message['file_name']}")
+        with st.chat_message(message["role"], avatar="👤" if message["role"] == "user" else "✨"):
+            st.markdown(message["content"])
 
-  # Built-in `+` Attachment Button right above the chat input box for images, videos, audio, and all file formats
-  uploaded_file = st.file_uploader(
-      "➕ Upload any file (Images, Videos, Audio, Documents, Code, Archives)",
-      type=[
-          "png",
-          "jpg",
-          "jpeg",
-          "mp4",
-          "mov",
-          "mp3",
-          "wav",
-          "txt",
-          "pdf",
-          "py",
-          "csv",
-          "json",
-          "zip",
-          "docx",
-          "xlsx",
-      ],
-      label_visibility="visible",
-  )
+    uploaded_file = st.file_uploader("➕ Upload any file (Image, Code, PDF, ZIP)", label_visibility="collapsed")
+    if user_query := st.chat_input("Ask Gemini..."):
+        file_content = []
+        if uploaded_file:
+            file_content.append(f"\n[Attached {uploaded_file.name}]\n")
+        file_content.append(user_query)
 
-  if user_query := st.chat_input("Ask Gemini..."):
-    if not api_key:
-      st.error("API Key not found in Streamlit Secrets!")
-    else:
-      file_content_parts = []
-      file_name_display = None
+        st.session_state.chat_messages.append({"role": "user", "content": user_query})
+        with st.chat_message("user", avatar="👤"): st.markdown(user_query)
 
-      if uploaded_file is not None:
-        file_name_display = uploaded_file.name
-        file_bytes = uploaded_file.getvalue()
-        if (
-            uploaded_file.type.startswith("image/")
-            or uploaded_file.type.startswith("video/")
-            or uploaded_file.type.startswith("audio/")
-        ):
-          file_content_parts.append(
-              types.Part.from_bytes(data=file_bytes, mime_type=uploaded_file.type)
-          )
-        else:
-          try:
-            text_data = file_bytes.decode("utf-8")
-            file_content_parts.append(
-                f"\n[Attached File Content from {file_name_display}]:\n{text_data}\n"
-            )
-          except Exception:
-            file_content_parts.append(
-                f"\n[Attached Binary File: {file_name_display}]\n"
-            )
-
-      file_content_parts.append(user_query)
-
-      st.session_state.chat_messages.append({
-          "role": "user",
-          "content": user_query,
-          "file_name": file_name_display,
-      })
-      with st.chat_message("user", avatar="👤"):
-        st.markdown(user_query)
-        if file_name_display:
-          st.caption(f"📎 Attached file: {file_name_display}")
-
-      with st.chat_message("assistant", avatar="✨"):
-        with st.spinner("Gemini is thinking..."):
-          try:
-            client = genai.Client(api_key=api_key)
-            formatted_history = [
-                {"role": m["role"], "parts": [{"text": m["content"]}]}
-                for m in st.session_state.chat_messages[:-1]
-            ]
-
-            def send_chat():
-              chat = client.chats.create(
-                  model="gemini-3.6-flash", history=formatted_history
-              )
-              return chat.send_message(file_content_parts)
-
-            response = call_gemini_with_retry(send_chat)
-            ai_reply = response.text
-
-            st.markdown(ai_reply)
-            st.session_state.chat_messages.append(
-                {"role": "model", "content": ai_reply}
-            )
-          except Exception as e:
-            st.error(f"Chat Error: {e}")
-
-  st.markdown(
-      "<p style='text-align: center; color: #8e918f; font-size: 11px; margin-top:"
-      " 20px;'>Gemini is AI and can make mistakes.</p>",
-      unsafe_allow_html=True,
-  )
+        with st.chat_message("assistant", avatar="✨"):
+            with st.spinner("Gemini is thinking..."):
+                try:
+                    reply = query_gemini_text(" ".join(file_content))
+                    st.markdown(reply)
+                    st.session_state.chat_messages.append({"role": "model", "content": reply})
+                except Exception as e:
+                    st.error(f"Chat Error: {e}")
 
 
 # ==========================================
-# MODULE 2: Image Generator View (Guest Restricted)
+# MODULE 2: Search Chats
+# ==========================================
+elif st.session_state.active_view == "🔍 Search chats":
+    st.title("🔍 Search Your Chats")
+    st.markdown("<p style='color: #8e918f;'>Quickly find answers, links, and code from your previous conversations.</p><hr>", unsafe_allow_html=True)
+    
+    search_q = st.text_input("Enter keywords to search...", placeholder="e.g. Python scripts, FIFA World Cup, etc.")
+    
+    if search_q:
+        results = [m for m in st.session_state.chat_messages if search_q.lower() in m['content'].lower()]
+        if results:
+            st.success(f"Found {len(results)} matching messages.")
+            for r in results:
+                with st.chat_message(r['role'], avatar="👤" if r['role']=="user" else "✨"):
+                    # Basic highlight
+                    highlighted = r['content'].replace(search_q, f"**{search_q}**")
+                    st.markdown(highlighted)
+        else:
+            st.warning("No matching messages found in your current session history.")
+    else:
+        st.info("Start typing above to search through your active chat history.")
+
+
+# ==========================================
+# MODULE 3: Students Workspace (Gemini Edu)
+# ==========================================
+elif st.session_state.active_view == "🎓 Students":
+    if st.session_state.is_guest:
+        st.error("🔒 Premium Feature Restricted")
+        st.warning("Free guests cannot access the Student Workspace. Please sign in.")
+    else:
+        st.title("🎓 Student Workspace")
+        st.markdown("<p style='color: #8e918f;'>Supercharge your studies with Gemini's AI learning tools.</p>", unsafe_allow_html=True)
+        
+        tab_learn, tab_quiz, tab_flash, tab_focus = st.tabs(["📖 Guided Learning", "📝 Quiz Yourself", "🗂️ Flashcards", "🌌 Immersive View"])
+        
+        # --- GUIDED LEARNING ---
+        with tab_learn:
+            st.subheader("Step-by-Step Socratic Tutor")
+            st.info("Gemini will not give you the direct answer. Instead, it will guide you to figure it out yourself by asking thoughtful questions.")
+            
+            for m in st.session_state.student_chat:
+                with st.chat_message(m["role"], avatar="👤" if m["role"] == "user" else "✨"):
+                    st.markdown(m["content"])
+                    
+            if student_q := st.chat_input("What topic or problem are you stuck on?", key="student_input"):
+                st.session_state.student_chat.append({"role": "user", "content": student_q})
+                st.rerun() # Trigger rerun to show chat input at bottom properly
+                
+            # Handle AI response after rerun
+            if st.session_state.student_chat and st.session_state.student_chat[-1]["role"] == "user":
+                with st.chat_message("assistant", avatar="✨"):
+                    with st.spinner("Preparing guidance..."):
+                        socratic_prompt = f"Act as an expert Socratic tutor. A student asks: '{st.session_state.student_chat[-1]['content']}'. DO NOT give the direct answer. Break down the concept and ask a guiding question to help them understand it."
+                        s_reply = query_gemini_text(socratic_prompt)
+                        st.markdown(s_reply)
+                        st.session_state.student_chat.append({"role": "model", "content": s_reply})
+
+        # --- QUIZ YOURSELF ---
+        with tab_quiz:
+            st.subheader("Generate Custom Practice Tests")
+            quiz_topic = st.text_input("Enter a subject or paste your notes to generate a quiz:")
+            if st.button("📝 Generate Quiz"):
+                if quiz_topic:
+                    with st.spinner("Generating quiz..."):
+                        q_prompt = f"Create a 3-question multiple-choice quiz about: '{quiz_topic}'. Include the answer key at the very bottom."
+                        st.markdown(query_gemini_text(q_prompt))
+                else:
+                    st.warning("Please enter a topic.")
+
+        # --- FLASHCARDS ---
+        with tab_flash:
+            st.subheader("AI Flashcard Generator")
+            flash_topic = st.text_input("Enter a topic for flashcards (e.g. Physics formulas, Spanish verbs):")
+            if st.button("🗂️ Create Flashcards"):
+                if flash_topic:
+                    with st.spinner("Generating flashcards..."):
+                        f_prompt = f"Generate 5 distinct flashcards for '{flash_topic}'. Format EXACTLY like this: 'TERM: [term] | DEF: [definition]'. Do not include any other text."
+                        f_res = query_gemini_text(f_prompt)
+                        
+                        lines = f_res.split("\n")
+                        for line in lines:
+                            if "TERM:" in line and "DEF:" in line:
+                                parts = line.split("| DEF:")
+                                term = parts[0].replace("TERM:", "").strip()
+                                definition = parts[1].strip() if len(parts) > 1 else ""
+                                
+                                with st.expander(f"**{term}**"):
+                                    st.markdown(f"<p style='color:#e3e3e3; font-size: 16px; padding: 10px;'>{definition}</p>", unsafe_allow_html=True)
+                else:
+                    st.warning("Please enter a topic.")
+
+        # --- IMMERSIVE VIEW ---
+        with tab_focus:
+            st.subheader("Distraction-Free Reading")
+            focus_topic = st.text_area("Paste text or ask Gemini to explain a topic in an immersive format:")
+            if st.button("🌌 Enter Immersive View"):
+                if focus_topic:
+                    with st.spinner("Formatting immersive view..."):
+                        i_prompt = f"Write a comprehensive, engaging, and easy-to-read explanation of '{focus_topic}'. Use clean formatting."
+                        i_text = query_gemini_text(i_prompt)
+                        st.markdown(f"<div class='immersive-view'>{i_text}</div>", unsafe_allow_html=True)
+
+
+# ==========================================
+# MODULE 4: Library (Image Gallery)
+# ==========================================
+elif st.session_state.active_view == "📁 Library":
+    st.title("📁 Your Media Library")
+    st.markdown("<p style='color: #8e918f;'>All your generated visual artwork is safely stored here.</p><hr>", unsafe_allow_html=True)
+    
+    if not st.session_state.saved_images:
+        st.info("Your library is currently empty. Head over to the **Image Generator** to create artwork!")
+    else:
+        cols = st.columns(3)
+        for idx, img_data in enumerate(st.session_state.saved_images):
+            with cols[idx % 3]:
+                st.image(img_data["bytes"], use_container_width=True)
+                with st.expander("Image Details"):
+                    st.caption(f"**Prompt:** {img_data['prompt']}")
+                    st.download_button("📥 Download", data=img_data["bytes"], file_name=f"gemini_art_{idx}.jpg", mime="image/jpeg", key=f"dl_{idx}")
+
+
+# ==========================================
+# MODULE 5: Image Generator (Links to Library)
 # ==========================================
 elif st.session_state.active_view == "🎨 Image Generator":
-  if st.session_state.is_guest:
-    st.error("🔒 Feature Restricted for Guests")
-    st.warning(
-        "Free guests cannot use the **Image Generator** feature. Please sign in"
-        " with a registered account to unlock this feature!"
-    )
-    if st.button("🔑 Switch to Registered Account"):
-      st.session_state.user_name = None
-      st.session_state.is_guest = False
-      st.rerun()
-  else:
-    st.title("🎨 Image Generation Studio")
-    st.markdown(
-        "<p style='color: #8e918f;'>Create professional visual artwork using"
-        " Gemini models.</p>",
-        unsafe_allow_html=True,
-    )
-    st.markdown("---")
-
-    col1, col2 = st.columns([1, 1.2])
-
-    with col1:
-      image_prompt = st.text_area(
-          "Enter image description:",
-          value=(
-              "Cinematic neon-lit cyberpunk sports car driving through Tokyo"
-              " streets at night"
-          ),
-          height=120,
-      )
-      aspect_ratio = st.selectbox(
-          "Aspect Ratio", ["1:1 (Square)", "16:9 (Landscape)", "9:16 (Portrait)"]
-      )
-      gen_image_btn = st.button("✨ Generate Image")
-
-    with col2:
-      st.markdown("#### 🖼️ Output Preview")
-      if gen_image_btn:
-        if not api_key:
-          st.error("API Key missing in Streamlit Secrets!")
-        else:
-          with st.spinner("Generating artwork..."):
-            try:
-              client = genai.Client(api_key=api_key)
-              ratio_code = aspect_ratio.split(" ")[0]
-
-              def generate_img():
-                return client.models.generate_content(
-                    model="gemini-3.6-flash",
-                    contents=image_prompt,
-                    config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE", "TEXT"]
-                    ),
-                )
-
-              response = call_gemini_with_retry(generate_img)
-
-              image_found = False
-              if response and response.candidates:
-                for candidate in response.candidates:
-                  if candidate.content and candidate.content.parts:
-                    for part in candidate.content.parts:
-                      if getattr(part, "inline_data", None) and part.inline_data:
-                        img_bytes = part.inline_data.data
-                        st.image(
-                            img_bytes,
-                            caption=f"Generated Image ({ratio_code})",
-                            use_container_width=True,
+    if st.session_state.is_guest:
+        st.error("🔒 Feature Restricted for Guests")
+    else:
+        st.title("🎨 Image Generation Studio")
+        st.markdown("<hr>", unsafe_allow_html=True)
+        col1, col2 = st.columns([1, 1.2])
+        with col1:
+            img_prompt = st.text_area("Image description:")
+            if st.button("✨ Generate & Save to Library"):
+                with st.spinner("Generating artwork..."):
+                    try:
+                        client = genai.Client(api_key=api_key)
+                        res = client.models.generate_content(
+                            model="gemini-3.6-flash", 
+                            contents=img_prompt, 
+                            config=types.GenerateContentConfig(response_modalities=["IMAGE"])
                         )
-                        st.download_button(
-                            label="📥 Download Image",
-                            data=img_bytes,
-                            file_name="gemini_image.jpg",
-                            mime="image/jpeg",
-                        )
-                        image_found = True
-
-              if not image_found:
-                if response and response.text:
-                  st.info(f"Model text response: {response.text}")
-                else:
-                  st.warning(
-                      "No image data returned. Try a more descriptive prompt."
-                  )
-            except Exception as e:
-              st.error(f"Generation Error: {e}")
-      else:
-        st.info("👉 Configure your description and click **'Generate Image'**.")
+                        for candidate in res.candidates:
+                            for part in candidate.content.parts:
+                                if part.inline_data:
+                                    img_bytes = part.inline_data.data
+                                    # SAVE TO LIBRARY
+                                    st.session_state.saved_images.append({"bytes": img_bytes, "prompt": img_prompt})
+                                    st.success("Image generated and saved to your 📁 Library!")
+                                    st.rerun()
+                    except Exception as e:
+                        st.error(f"Generation Error: {e}")
+        with col2:
+            st.info("Generated images will be automatically saved to your **Library** tab.")
 
 
 # ==========================================
-# MODULE 3: Notebook View (Guest Restricted)
+# MODULE 6: Notebook Interface
 # ==========================================
 elif st.session_state.active_view == "📓 Notebook":
-  if st.session_state.is_guest:
-    st.error("🔒 Feature Restricted for Guests")
-    st.warning(
-        "Free guests cannot access **Notebooks**. Please sign in with a"
-        " registered account to use this feature!"
-    )
-    if st.button("🔑 Switch to Registered Account", key="nb_login_btn"):
-      st.session_state.user_name = None
-      st.session_state.is_guest = False
-      st.rerun()
-  else:
-    st.title("📓 Notebook Workspace")
-    st.markdown(
-        "<p style='color: #8e918f;'>Manage your saved notes, research snippets,"
-        " and data sources.</p>",
-        unsafe_allow_html=True,
-    )
-    st.markdown("---")
-    st.info(
-        "Notebook workspace active. You can add your custom notes and code"
-        " snippets here."
-    )
+    if st.session_state.is_guest:
+        st.error("🔒 Feature Restricted for Guests")
+    else:
+        st.title("📓 Private Notebooks")
+        st.markdown("<hr>", unsafe_allow_html=True)
+        
+        col_list, col_edit = st.columns([1, 2.5])
+        
+        with col_list:
+            if st.button("➕ Create New Note", use_container_width=True):
+                new_id = len(st.session_state.notes)
+                st.session_state.notes.append({"id": new_id, "title": f"Untitled Note {new_id}", "content": ""})
+                st.session_state.current_note_id = new_id
+                
+            st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+            for i, note in enumerate(st.session_state.notes):
+                if st.button(f"📄 {note['title']}", key=f"n_btn_{i}", use_container_width=True):
+                    st.session_state.current_note_id = i
 
-
-# ==========================================
-# MODULE 4: Other Views
-# ==========================================
-else:
-  st.title(f"📁 {st.session_state.active_view}")
-  st.markdown(
-      "<p style='color: #8e918f;'>Workspace module loaded successfully.</p>",
-      unsafe_allow_html=True,
-  )
-  st.markdown("---")
-  st.info("Use the sidebar to return to the active workspace.")
+        with col_edit:
+            current_id = st.session_state.get("current_note_id", 0)
+            if current_id < len(st.session_state.notes):
+                active_note = st.session_state.notes[current_id]
+                
+                new_title = st.text_input("Note Title", value=active_note["title"])
+                new_content = st.text_area("Content", value=active_note["content"], height=400)
+                
+                if st.button("💾 Save Note Changes"):
+                    st.session_state.notes[current_id]["title"] = new_title
+                    st.session_state.notes[current_id]["content"] = new_content
+                    st.success("Note securely saved!")
