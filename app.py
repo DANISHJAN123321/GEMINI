@@ -24,48 +24,56 @@ st.markdown(
         color: #e3e3e3; 
         font-family: 'Google Sans', sans-serif;
     }
+    
+    /* Sidebar Styling to Match Reference */
     section[data-testid="stSidebar"] {
         background-color: #1e1f20;
         border-right: 1px solid #282a2c;
-        padding-top: 10px;
+        padding-top: 5px;
     }
-    .stTextInput input, .stTextArea textarea {
+    
+    /* Hide Streamlit Default Menu/Footer */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+
+    /* Input Pill Bar Styling */
+    .stChatInputContainer {
         background-color: #1e1f20 !important;
-        color: #ffffff !important;
         border: 1px solid #444746 !important;
-        border-radius: 12px !important;
-        padding: 10px 14px !important;
+        border-radius: 28px !important;
+        padding: 4px 12px !important;
     }
-    .stTextInput input:focus, .stTextArea textarea:focus {
-        border-color: #a8c7fa !important;
-        box-shadow: 0 0 0 1px #a8c7fa !important;
+    .stChatInputContainer textarea {
+        color: #ffffff !important;
+        font-family: 'Google Sans', sans-serif !important;
     }
+
+    /* Custom Buttons */
     div.stButton > button:first-child {
-        background: #a8c7fa;
-        color: #001d35; 
-        border: none; 
-        border-radius: 24px; 
+        background: #1e1f20;
+        color: #e3e3e3; 
+        border: 1px solid #444746; 
+        border-radius: 20px; 
         font-weight: 500;
-        padding: 0.6rem 1.2rem; 
+        padding: 0.4rem 1rem; 
         width: 100%;
+        text-align: left;
         transition: background 0.2s;
     }
     div.stButton > button:first-child:hover {
-        background: #d3e3fd;
+        background: #282a2c;
+        border-color: #8e918f;
     }
-    .stRadio label, .stSelectbox label {
-        color: #c4c7c5 !important;
-    }
-    /* Force high-contrast visible text inside chat messages */
+
+    /* Chat Message Bubbles */
     div[data-testid="stChatMessage"] {
-        background-color: #1e1f20 !important;
-        border: 1px solid #282a2c !important;
-        border-radius: 16px !important;
-        padding: 12px !important;
-        margin-bottom: 12px !important;
+        background-color: transparent !important;
+        padding: 16px 0 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     }
     div[data-testid="stChatMessage"] p, div[data-testid="stChatMessage"] span, div[data-testid="stChatMessage"] li {
         color: #e3e3e3 !important;
+        font-family: 'Google Sans', sans-serif !important;
     }
     </style>
 """,
@@ -80,62 +88,103 @@ api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
 # ==========================================
 if "chat_messages" not in st.session_state:
   st.session_state.chat_messages = []
-if "image_history" not in st.session_state:
-  st.session_state.image_history = []
-if "studio_output" not in st.session_state:
-  st.session_state.studio_output = ""
+if "active_view" not in st.session_state:
+  st.session_state.active_view = "💬 Chat Assistant"
 
 # ==========================================
-# Sidebar Navigation (Mirrors Gemini Reference UI)
+# Sidebar Navigation (Exact Match to Reference Image)
 # ==========================================
 with st.sidebar:
-  st.markdown(
-      "<h3 style='color: #e3e3e3; font-size: 18px; margin-bottom: 0;'>✨"
-      " Gemini</h3>",
-      unsafe_allow_html=True,
-  )
-  st.markdown("---")
+  # Top Header with Gemini Logo
+  col_logo, col_opt = st.columns([4, 1])
+  with col_logo:
+    st.markdown(
+        "<h3 style='color: #e3e3e3; font-size: 18px; margin: 0; font-family:"
+        " \"Google Sans\";'>✨ Gemini</h3>",
+        unsafe_allow_html=True,
+    )
+  with col_opt:
+    st.markdown(
+        "<div style='border: 1px solid #444746; border-radius: 6px; padding:"
+        " 2px 6px; text-align: center; cursor: pointer; color: #c4c7c5; font-size:"
+        " 12px;'>🗂️</div>",
+        unsafe_allow_html=True,
+    )
 
-  app_mode = st.radio(
-      "Navigation",
-      [
-          "💬 Chat Assistant",
-          "🎨 Image Generator",
-          "✍️ Prompt & Copywriting Studio",
-      ],
-      label_visibility="collapsed",
-  )
+  st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True)
 
-  st.markdown("---")
+  # Quick Navigation Buttons
+  if st.button("➕ New chat", key="nav_new"):
+    st.session_state.chat_messages = []
+    st.session_state.active_view = "💬 Chat Assistant"
+    st.rerun()
+
+  if st.button("🔍 Search chats", key="nav_search"):
+    st.session_state.active_view = "🔍 Search chats"
+    st.rerun()
+
+  if st.button("🎓 Students", key="nav_students"):
+    st.session_state.active_view = "🎓 Students"
+    st.rerun()
+
+  if st.button("🖼️ Images", key="nav_images"):
+    st.session_state.active_view = "🎨 Image Generator"
+    st.rerun()
+
+  if st.button("📁 Library", key="nav_library"):
+    st.session_state.active_view = "📁 Library"
+    st.rerun()
+
+  st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
   st.markdown(
       "<p"
-      " style='color:#8e918f;font-size:12px;font-weight:500;'>RECENT</p>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      "<p style='color:#c4c7c5;font-size:13px;cursor:pointer;'>Building a Free"
-      " Fire Panel</p>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      "<p style='color:#c4c7c5;font-size:13px;cursor:pointer;'>15-Day Software"
-      " Roadmap</p>",
+      " style='color:#8e918f;font-size:11px;font-weight:700;letter-spacing:0.5px;margin-bottom:6px;'>NOTEBOOKS</p>",
       unsafe_allow_html=True,
   )
 
-  st.markdown("<div style='margin-top: 150px;'></div>", unsafe_allow_html=True)
+  if st.button("➕ New notebook", key="nav_new_nb"):
+    pass
+  if st.button("📓 d", key="nb_1"):
+    pass
+  if st.button("📓 Untitled notebook", key="nb_2"):
+    pass
+
+  st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+  st.markdown(
+      "<p"
+      " style='color:#8e918f;font-size:11px;font-weight:700;letter-spacing:0.5px;margin-bottom:6px;'>RECENTS</p>",
+      unsafe_allow_html=True,
+  )
+  st.markdown(
+      "<p style='color:#c4c7c5; font-size: 13px; padding: 4px 0; cursor:"
+      " pointer;'>🔥 Building a Free Fire Panel</p>",
+      unsafe_allow_html=True,
+  )
+  st.markdown(
+      "<p style='color:#c4c7c5; font-size: 13px; padding: 4px 0; cursor:"
+      " pointer;'>🚀 15-Day Software Development Roadmap</p>",
+      unsafe_allow_html=True,
+  )
+
+  # Push profile section to bottom
+  st.markdown("<div style='margin-top: 80px;'></div>", unsafe_allow_html=True)
   st.markdown("---")
-  st.markdown(
-      "<div style='display: flex; align-items: center; gap: 10px;'>"
-      "<span style='font-size: 18px;'>👤</span>"
-      "<span style='font-size: 14px; font-weight: 500; color: #e3e3e3;'>Danyal"
-      " Jan</span>"
-      "</div>",
-      unsafe_allow_html=True,
-  )
+
+  # User Footer (Danyal Jan)
+  col_user_img, col_user_name, col_user_set = st.columns([1, 3, 1])
+  with col_user_img:
+    st.markdown("👤")
+  with col_user_name:
+    st.markdown(
+        "<p style='color: #e3e3e3; font-size: 13px; font-weight: 500; margin:"
+        " 0;'>Danyal Jan</p>",
+        unsafe_allow_html=True,
+    )
+  with col_user_set:
+    st.markdown("⚙️")
 
 
-# Helper function to handle transient errors automatically
+# Helper function to handle transient API errors automatically
 def call_gemini_with_retry(api_call_func, max_retries=3):
   for attempt in range(max_retries):
     try:
@@ -155,30 +204,35 @@ def call_gemini_with_retry(api_call_func, max_retries=3):
 
 
 # ==========================================
-# MODULE 1: AI Chat Assistant with File/Image Upload
+# MODULE 1: Chat Assistant View (with Multimodal File/Image Upload)
 # ==========================================
-if app_mode == "💬 Chat Assistant":
-  st.title("Hello, Danyal")
-  st.markdown(
-      "<p style='color: #8e918f;'>How can I help you today?</p>",
-      unsafe_allow_html=True,
-  )
-  st.markdown("---")
+if st.session_state.active_view == "💬 Chat Assistant":
+  if not st.session_state.chat_messages:
+    st.markdown(
+        "<h2 style='color: #c4c7c5; font-weight: 400; margin-top: 40px;'>Hello,"
+        " Danyal</h2>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<h1 style='color: #e3e3e3; font-weight: 500; margin-top: -10px;"
+        " margin-bottom: 30px;'>How can I help you today?</h1>",
+        unsafe_allow_html=True,
+    )
+  else:
+    for message in st.session_state.chat_messages:
+      with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+        if "file_name" in message and message["file_name"]:
+          st.caption(f"📎 Attached file: {message['file_name']}")
 
-  # Render chat conversation history
-  for message in st.session_state.chat_messages:
-    with st.chat_message(message["role"]):
-      st.markdown(message["content"])
-      if "file_name" in message and message["file_name"]:
-        st.caption(f"📎 Attached: {message['file_name']}")
+  # Upload Section Widget for Images, Documents, Folders/Files
+  with st.expander("➕ Upload Image, Document, or File Workspace"):
+    uploaded_file = st.file_uploader(
+        "Choose a file to attach to your prompt",
+        type=["png", "jpg", "jpeg", "txt", "pdf", "py", "csv", "json", "zip"],
+    )
 
-  # Upload section for images or files right above chat input
-  uploaded_file = st.file_uploader(
-      "📁 Upload Image, Document or File for Analysis",
-      type=["png", "jpg", "jpeg", "txt", "pdf", "py", "csv"],
-  )
-
-  if user_query := st.chat_input("Ask Gemini or give instructions..."):
+  if user_query := st.chat_input("Ask Gemini..."):
     if not api_key:
       st.error("API Key not found in Streamlit Secrets!")
     else:
@@ -205,7 +259,6 @@ if app_mode == "💬 Chat Assistant":
 
       file_content_parts.append(user_query)
 
-      # Store and display user message
       st.session_state.chat_messages.append({
           "role": "user",
           "content": user_query,
@@ -214,7 +267,7 @@ if app_mode == "💬 Chat Assistant":
       with st.chat_message("user"):
         st.markdown(user_query)
         if file_name_display:
-          st.caption(f"📎 Attached: {file_name_display}")
+          st.caption(f"📎 Attached file: {file_name_display}")
 
       with st.chat_message("assistant"):
         with st.spinner("Gemini is thinking..."):
@@ -239,17 +292,23 @@ if app_mode == "💬 Chat Assistant":
                 {"role": "model", "content": ai_reply}
             )
           except Exception as e:
-            st.error(f"Chat Error: {e}. Please try sending again.")
+            st.error(f"Chat Error: {e}")
+
+  st.markdown(
+      "<p style='text-align: center; color: #8e918f; font-size: 11px; margin-top:"
+      " 30px;'>Gemini is AI and can make mistakes.</p>",
+      unsafe_allow_html=True,
+  )
 
 
 # ==========================================
-# MODULE 2: Direct API Image Generator
+# MODULE 2: Image Generator View
 # ==========================================
-elif app_mode == "🎨 Image Generator":
+elif st.session_state.active_view == "🎨 Image Generator":
   st.title("🎨 Image Generation Studio")
   st.markdown(
-      "<p style='color: #8e918f;'>Create visual artwork using official Gemini"
-      " models.</p>",
+      "<p style='color: #8e918f;'>Create professional visual artwork using"
+      " Gemini models.</p>",
       unsafe_allow_html=True,
   )
   st.markdown("---")
@@ -320,96 +379,22 @@ elif app_mode == "🎨 Image Generator":
                     "No image data returned. Try a more descriptive prompt."
                 )
           except Exception as e:
-            st.error(f"Generation Error: {e}. Please try again.")
+            st.error(f"Generation Error: {e}")
     else:
       st.info("👉 Configure your description and click **'Generate Image'**.")
 
 
 # ==========================================
-# MODULE 3: Prompt & Copywriting Studio
+# MODULE 3: Other Views (Search, Students, Library)
 # ==========================================
-elif app_mode == "✍️ Prompt & Copywriting Studio":
-  st.title("✍️ Prompt & Content Studio")
+else:
+  st.title(f"📁 {st.session_state.active_view}")
   st.markdown(
-      "<p style='color: #8e918f;'>Build professional prompts and copy with AI"
-      " intelligence.</p>",
+      "<p style='color: #8e918f;'>Workspace module loaded successfully.</p>",
       unsafe_allow_html=True,
   )
   st.markdown("---")
-
-  col_a, col_b = st.columns([1, 1.3])
-
-  with col_a:
-    tool_type = st.selectbox(
-        "Select Tool:",
-        [
-            "AI Image Prompt Engineer",
-            "Marketing Copywriter (AIDA)",
-            "Blog Post Structure",
-            "Catchy Email Subject Lines",
-        ],
-    )
-    raw_input = st.text_area(
-        "Enter your topic or base concept:",
-        placeholder="E.g., A new fitness app launch...",
-        height=130,
-    )
-    craft_btn = st.button("🔮 Craft Content")
-
-  with col_b:
-    st.markdown("#### 📄 Workspace Output")
-    if craft_btn and raw_input:
-      with st.spinner("Crafting content..."):
-        try:
-          client = genai.Client(api_key=api_key)
-
-          if tool_type == "AI Image Prompt Engineer":
-            instruction = (
-                "Act as an expert AI prompt engineer. Expand this concept into a"
-                " rich, detailed visual art prompt focusing on lighting and"
-                " style. Return only the prompt text."
-            )
-          elif tool_type == "Marketing Copywriter (AIDA)":
-            instruction = (
-                "Act as a professional direct-response copywriter. Write a"
-                " marketing pitch using the AIDA framework."
-            )
-          elif tool_type == "Blog Post Structure":
-            instruction = (
-                "Act as a content strategist. Outline a comprehensive blog"
-                " post including H2 headings."
-            )
-          else:
-            instruction = (
-                "Act as an email marketer. Generate 5 high-open-rate subject"
-                " lines for this topic."
-            )
-
-          def generate_text():
-            return client.models.generate_content(
-                model="gemini-3.6-flash",
-                contents=raw_input,
-                config=types.GenerateContentConfig(
-                    system_instruction=instruction
-                ),
-            )
-
-          response = call_gemini_with_retry(generate_text)
-          st.session_state.studio_output = response.text.strip()
-        except Exception as e:
-          st.error(f"Studio Error: {e}")
-
-    st.text_area(
-        "Result:",
-        value=st.session_state.studio_output,
-        height=280,
-        key="studio_display",
-    )
-
-    if st.session_state.studio_output:
-      st.download_button(
-          label="💾 Download Text File",
-          data=st.session_state.studio_output,
-          file_name="gemini_studio_output.txt",
-          mime="text/plain",
-      )
+  st.info(
+      "Use the sidebar to return to the **💬 Chat Assistant** or **🎨 Image"
+      " Generator**."
+  )
